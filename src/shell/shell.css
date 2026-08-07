@@ -1,0 +1,684 @@
+/* ------------------------------------------------------------ palette */
+:root {
+  --bg: #17171a;
+  --bg-glow: #26262e;
+  --chrome: #202024;
+  --chrome-line: #35353c;
+  --fg: #e8e8ec;
+  --fg-dim: #8b8b95;
+  --field: #2b2b31;
+  --field-focus: #34343c;
+  --accent: #0a84ff;
+
+  --toolbar-h: 52px;
+  --devicebar-h: 42px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #e9e9ee;
+    --bg-glow: #f7f7fa;
+    --chrome: #f2f2f5;
+    --chrome-line: #d8d8de;
+    --fg: #1c1c1e;
+    --fg-dim: #6e6e78;
+    --field: #ffffff;
+    --field-focus: #ffffff;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+  font: 13px/1.3 -apple-system, "SF Pro Text", system-ui, sans-serif;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
+/* ------------------------------------------------------------ toolbar */
+#toolbar {
+  height: var(--toolbar-h);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px 0 0;
+  background: var(--chrome);
+  border-bottom: 1px solid var(--chrome-line);
+  -webkit-app-region: drag;
+  position: relative;
+  z-index: 10;
+}
+
+.traffic-spacer { width: 78px; flex: none; }
+
+#toolbar .group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  -webkit-app-region: no-drag;
+  flex: none;
+}
+
+button.icon {
+  -webkit-app-region: no-drag;
+  width: 28px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  padding: 0;
+}
+button.icon:hover:not(:disabled) { background: var(--field); }
+button.icon:active:not(:disabled) { background: var(--field-focus); }
+button.icon:disabled { opacity: .3; }
+button.icon.on { background: var(--accent); color: #fff; }
+
+button.icon svg {
+  width: 16px; height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+button.icon svg .half { fill: currentColor; stroke: none; }
+
+#urlwrap {
+  flex: 1;
+  min-width: 120px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  background: var(--field);
+  border: 1px solid transparent;
+  border-radius: 7px;
+  -webkit-app-region: no-drag;
+}
+#urlwrap:focus-within { background: var(--field-focus); border-color: var(--accent); }
+
+#url {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--fg);
+  font: 12.5px -apple-system, system-ui, sans-serif;
+  -webkit-user-select: text;
+}
+#url::placeholder { color: var(--fg-dim); }
+
+.lock { display: grid; place-items: center; color: #37c65a; }
+.lock svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 1.4; }
+
+.spinner {
+  width: 12px; height: 12px; flex: none;
+  border: 1.6px solid var(--fg-dim);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* --------------------------------------------------------- device bar */
+#devicebar {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: var(--devicebar-h);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  background: var(--chrome);
+  border-top: 1px solid var(--chrome-line);
+  z-index: 10;
+}
+#devicebar .spring { flex: 1; }
+
+select {
+  -webkit-app-region: no-drag;
+  height: 26px;
+  max-width: 152px;
+  min-width: 0;
+  border: 1px solid var(--chrome-line);
+  border-radius: 6px;
+  background: var(--field);
+  color: var(--fg);
+  font: 12px -apple-system, system-ui, sans-serif;
+  padding: 0 4px;
+}
+
+/* -------------------------------------------------------------- stage */
+#stage {
+  position: absolute;
+  inset: var(--toolbar-h) 0 var(--devicebar-h) 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 24px;
+  background:
+    radial-gradient(120% 80% at 50% 0%, var(--bg-glow) 0%, var(--bg) 70%);
+  overflow: hidden;
+}
+
+#phoneScaler { flex: none; position: relative; }
+
+#phone {
+  /* replaced from the page's theme-colour once something loads */
+  --bar-fg: #fff;
+  --bar-bg: rgba(0, 0, 0, .82);
+  --bar-solid: #000;
+  --ui-neutral: #2a2a2d;
+  --ui-fg: #f2f2f5;
+  --ui-field: rgba(120, 120, 128, .32);
+
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: top left;
+  filter: drop-shadow(0 30px 60px rgba(0, 0, 0, .55));
+}
+
+/* ------------------------------------------------------------- frames */
+.frame {
+  padding: var(--bezel);
+  border-radius: calc(var(--radius) + var(--bezel));
+  background:
+    linear-gradient(148deg,
+      #7d7a76 0%, #34322f 9%, #56534e 20%, #23211f 34%,
+      #45423e 50%, #201e1c 66%, #5c5955 80%, #2b2926 92%, #6e6b67 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, .10) inset,
+    0 1px 2px rgba(255, 255, 255, .22) inset,
+    0 0 0 1px rgba(0, 0, 0, .55);
+}
+
+/* Pixel: polished aluminium rather than dark titanium */
+#phone.pixel .frame {
+  background:
+    linear-gradient(148deg,
+      #d9d9dd 0%, #8e8e94 10%, #c3c3c9 22%, #75757b 36%,
+      #b4b4bb 50%, #6e6e74 64%, #c8c8ce 78%, #83838a 90%, #d2d2d8 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, .30) inset,
+    0 1px 2px rgba(255, 255, 255, .45) inset,
+    0 0 0 1px rgba(0, 0, 0, .38);
+}
+
+.screen {
+  position: relative;
+  width: var(--w);
+  height: var(--h);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .9) inset;
+}
+
+#frameview {
+  position: absolute;
+  left: var(--side-inset);
+  top: var(--top-inset);
+  width: calc(var(--w) - var(--side-inset) * 2);
+  height: calc(var(--h) - var(--top-inset) - var(--bottom-inset));
+  display: flex;
+  background: #fff;
+  border: 0;
+}
+
+/* physical buttons */
+.btn {
+  position: absolute;
+  background: linear-gradient(90deg, #4c4a47, #2a2826 60%, #55524e);
+  border-radius: 2px;
+  z-index: -1;
+}
+.action    { left: -3px; top: 108px; width: 4px; height: 30px; border-radius: 2px 0 0 2px; }
+.vol-up    { left: -3px; top: 160px; width: 4px; height: 62px; border-radius: 2px 0 0 2px; }
+.vol-down  { left: -3px; top: 234px; width: 4px; height: 62px; border-radius: 2px 0 0 2px; }
+.power     { right: -3px; top: 186px; width: 4px; height: 96px; border-radius: 0 2px 2px 0; }
+.camera    { right: -3px; top: 300px; width: 4px; height: 34px; border-radius: 0 2px 2px 0; }
+
+/* Pixel: power then volume rocker, both on the right */
+#phone.pixel .btn { background: linear-gradient(90deg, #cfcfd4, #8a8a90 60%, #d4d4d9); }
+#phone.pixel .action,
+#phone.pixel .camera,
+#phone.pixel .vol-down { display: none; }
+#phone.pixel .power   { right: -3px; top: 150px; height: 58px; }
+#phone.pixel .vol-up  { left: auto; right: -3px; top: 222px; height: 96px;
+                        border-radius: 0 2px 2px 0; }
+#phone.landscape .btn { display: none; }
+
+/* --------------------------------------------------------- status bar */
+.statusbar {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: var(--status-h);
+  pointer-events: none;
+  color: var(--bar-fg);
+  z-index: 3;
+  display: none;
+}
+.statusbar.on { display: block; }
+
+/* With the browser UI shown the page sits below the status bar, so the OS
+   tints that strip with the page colour. Without it the page runs underneath
+   and the strip has to stay transparent. */
+.statusbar.tinted { background: var(--bar-solid); }
+/* Chrome and Vivaldi on iOS colour it from their own toolbar, not the page */
+.statusbar.tinted.neutral { background: var(--ui-neutral); color: var(--ui-fg); }
+
+.statusbar .time {
+  position: absolute;
+  font-variant-numeric: tabular-nums;
+}
+.statusbar .indicators {
+  position: absolute;
+  display: flex;
+  align-items: center;
+}
+.si { fill: currentColor; stroke: none; }
+
+/* iOS: clock centred in the left "ear", icons centred in the right one */
+.statusbar.ios .time {
+  left: calc((var(--w) - var(--front-w)) / 4);
+  top: calc(var(--front-top) + var(--front-h) / 2);
+  transform: translate(-50%, -50%);
+  font: 600 17px/1 -apple-system, "SF Pro Text", system-ui, sans-serif;
+  letter-spacing: .1px;
+}
+.statusbar.ios .indicators {
+  right: calc((var(--w) - var(--front-w)) / 4);
+  top: calc(var(--front-top) + var(--front-h) / 2);
+  transform: translate(50%, -50%);
+  gap: 6px;
+}
+.si.sig  { width: 17px;   height: 11px; }
+.si.wifi { width: 15.5px; height: 11.5px; }
+.si.batt { width: 27.4px; height: 13px; }
+
+.si.wifi .arc {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.05;
+  stroke-linecap: round;
+}
+.si.batt .shell { fill: none; stroke: currentColor; stroke-width: 1.1; opacity: .36; }
+.si.batt .cap { opacity: .36; }
+
+/* Android: clock hard left, icons hard right */
+.statusbar.android .time {
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  font: 500 14px/1 "Roboto", -apple-system, system-ui, sans-serif;
+}
+.statusbar.android .indicators {
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  gap: 6px;
+}
+.si.wifi-md { width: 16px; height: 12.8px; }
+.si.sig-md  { width: 13px; height: 13px; }
+.si.batt-md { width: 24px; height: 11.3px; }
+.si.batt-md .shell { fill: none; stroke: currentColor; stroke-width: 1.1; opacity: .4; }
+.si.batt-md .cap { opacity: .4; }
+
+/* ------------------------------------- front camera: island or punch hole */
+.island {
+  position: absolute;
+  left: 50%;
+  top: var(--front-top);
+  width: var(--front-w);
+  height: var(--front-h);
+  transform: translateX(-50%);
+  background: #000;
+  border-radius: 999px;
+  z-index: 4;
+  pointer-events: none;
+  box-shadow: 0 0 0 .5px rgba(255, 255, 255, .06);
+}
+#phone.landscape .island {
+  left: var(--front-top);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* ------------------------------------------------- home / gesture bar */
+.homebar {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  width: 140px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--bar-fg);
+  opacity: .85;
+  z-index: 5;
+  pointer-events: none;
+}
+#phone.neutral-home .homebar { background: var(--ui-fg); opacity: .75; }
+#phone.android .homebar { width: 108px; height: 4px; bottom: 10px; border-radius: 2px; }
+#phone.landscape .homebar { width: 200px; }
+.homebar.hidden { display: none; }
+
+/* ------------------------------------------------------- browser skins */
+.ui { display: none; z-index: 3; }
+.ui.on { display: flex; }
+
+.ui .host {
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* a bar pinned under the status bar (Safari landscape, Chrome Android) */
+.ui.top-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--status-h);
+  height: calc(var(--top-inset) - var(--status-h));
+  align-items: center;
+}
+
+/* ------------------------------------ Safari · iOS 26 floating glass */
+.safari-glass {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: var(--floating);
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 34px;      /* the page runs underneath; 34 = home indicator */
+  pointer-events: none;      /* only the controls take clicks */
+}
+.safari-glass .glass {
+  pointer-events: auto;
+  border: 0;
+  padding: 0;
+  color: var(--ui-fg);
+  background: color-mix(in srgb, var(--ui-neutral) 60%, transparent);
+  backdrop-filter: blur(26px) saturate(180%);
+  box-shadow:
+    0 0 0 .5px color-mix(in srgb, var(--ui-fg) 12%, transparent),
+    0 8px 22px rgba(0, 0, 0, .16);
+}
+.safari-glass .round {
+  width: 50px; height: 50px; flex: none;
+  border-radius: 25px;
+  display: grid; place-items: center;
+}
+.safari-glass .gpill {
+  flex: 1;
+  height: 50px;
+  border-radius: 25px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  min-width: 0;
+}
+.safari-glass .gpill .host {
+  flex: 1;
+  font: 400 16px -apple-system, system-ui, sans-serif;
+  opacity: .55;
+}
+.safari-glass .gicon { display: grid; place-items: center; opacity: .55; flex: none; }
+.safari-glass svg {
+  width: 21px; height: 21px;
+  fill: none; stroke: currentColor;
+  stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+}
+.safari-glass .round svg { width: 22px; height: 22px; }
+.safari-glass svg circle[r="1.9"] { fill: currentColor; stroke: none; }
+.safari-glass .round:disabled { opacity: .45; }
+
+/* --------------------------------------------------- Chrome · iOS bars */
+.chrome-ios-top {
+  background: var(--ui-neutral);
+  color: var(--ui-fg);
+  padding: 0 12px;
+}
+.cpill {
+  flex: 1;
+  height: 34px;
+  border-radius: 17px;
+  background: var(--ui-field);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  min-width: 0;
+}
+.cpill .host {
+  flex: 1;
+  font: 400 15px -apple-system, system-ui, sans-serif;
+  opacity: .95;
+}
+.cicon { display: grid; place-items: center; opacity: .6; flex: none; }
+.cicon svg {
+  width: 17px; height: 17px;
+  fill: none; stroke: currentColor;
+  stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+}
+
+.chrome-ios-bottom {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: var(--bottom-inset);
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 10px 26px;      /* 26 = home indicator zone */
+  background: var(--ui-neutral);
+  color: var(--ui-fg);
+}
+.chrome-ios-bottom .tb { color: var(--ui-fg); position: relative; }
+.chrome-ios-bottom .tb svg { width: 25px; height: 25px; }
+.chrome-ios-bottom .tb svg circle[r="1.9"] { fill: currentColor; stroke: none; }
+.chrome-ios-bottom .plus {
+  width: 38px; height: 38px;
+  border-radius: 19px;
+  background: var(--ui-field);
+  display: grid; place-items: center;
+}
+.chrome-ios-bottom .boxed { display: grid; place-items: center; }
+.chrome-ios-bottom .boxed svg { grid-area: 1 / 1; width: 22px; height: 22px; }
+.chrome-ios-bottom .boxed span {
+  grid-area: 1 / 1;
+  font: 600 11px -apple-system, system-ui, sans-serif;
+}
+
+/* ---------------------------------- shared bits for the drawn browsers */
+.pill {
+  height: 44px;
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--bar-fg) 10%, transparent);
+  display: grid;
+  grid-template-columns: 38px 1fr 38px;
+  align-items: center;
+}
+.aa {
+  justify-self: center;
+  font: 600 16px -apple-system, system-ui, sans-serif;
+  opacity: .6;
+}
+.aa small { font-size: 11.5px; }
+.pill .host { font: 400 16px -apple-system, system-ui, sans-serif; opacity: .95; }
+.mini {
+  background: none; border: 0; padding: 0;
+  justify-self: center;
+  color: inherit;
+  opacity: .6;
+}
+.mini svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+
+.tb {
+  background: none; border: 0; padding: 0;
+  /* iOS tints these blue; blend toward the bar's foreground so they stay
+     legible when the page tints the bar a saturated colour */
+  color: color-mix(in srgb, var(--accent) 60%, var(--bar-fg));
+}
+.tb svg {
+  width: 24px; height: 24px;
+  fill: none; stroke: currentColor;
+  stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
+}
+.tb:disabled { opacity: .35; }
+
+.safari-top {
+  background: var(--bar-bg);
+  color: var(--bar-fg);
+  gap: 12px;
+  padding: 0 16px;
+  border-bottom: .5px solid rgba(128, 128, 128, .3);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+.safari-top .pill { flex: 1; height: 32px; border-radius: 9px; }
+.safari-top .pill .host { font-size: 13.5px; }
+
+/* ------------------------------------------------------------ Vivaldi */
+.vivaldi {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: var(--bottom-inset);
+  flex-direction: column;
+  padding-bottom: 14px;              /* home-indicator zone */
+  background: var(--ui-neutral);
+  color: var(--ui-fg);
+  border-top: .5px solid rgba(128, 128, 128, .28);
+}
+
+.vivaldi .searchrow {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px 0;
+}
+.vivaldi .field {
+  flex: 1;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: var(--ui-field);
+  font: 400 16px -apple-system, system-ui, sans-serif;
+  opacity: .55;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.vivaldi .vlogo { width: 38px; height: 38px; background: none; border: 0; padding: 0; }
+.vivaldi .vlogo svg { width: 100%; height: 100%; }
+.vivaldi .vlogo .solid { fill: #4a4a4f; stroke: none; }
+.vivaldi .vlogo .knock { fill: var(--ui-neutral); stroke: none; }
+
+.vivaldi .vtabbar {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 8px;
+}
+.vivaldi .tb { color: color-mix(in srgb, var(--ui-fg) 70%, transparent); }
+
+/* ----------------------------------------------------- Chrome Android */
+.chrome-android {
+  background: var(--ui-neutral);
+  color: var(--ui-fg);
+  gap: 8px;
+  padding: 0 8px 0 12px;
+}
+.chrome-android .omnibox {
+  flex: 1;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border-radius: 20px;
+  background: var(--ui-field);
+  min-width: 0;
+}
+.chrome-android .glock { display: grid; place-items: center; opacity: .7; }
+.chrome-android .glock svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.chrome-android .omnibox .host {
+  flex: 1;
+  text-align: left;
+  font: 400 15px "Roboto", -apple-system, system-ui, sans-serif;
+  opacity: .9;
+}
+.chrome-android .gtabs {
+  width: 26px; height: 26px; flex: none;
+  border: 2px solid currentColor;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  opacity: .85;
+  display: grid; place-items: center;
+  padding: 0;
+}
+.chrome-android .gtabs span { font: 700 12px "Roboto", system-ui, sans-serif; }
+.chrome-android .gmenu { background: none; border: 0; padding: 0; color: inherit; opacity: .85; }
+.chrome-android .gmenu svg { width: 20px; height: 20px; fill: currentColor; stroke: none; }
+
+/* the Android gesture strip below the page */
+.chrome-nav {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: var(--bottom-inset);
+  background: var(--ui-neutral);
+}
+
+/* ------------------------------------------------------------ readout */
+.meta {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 6px;
+  text-align: center;
+  color: var(--fg-dim);
+  font: 11.5px ui-monospace, "SF Mono", Menlo, monospace;
+  letter-spacing: .2px;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------- toast */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  padding: 9px 14px;
+  border-radius: 9px;
+  background: rgba(20, 20, 24, .92);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, .12);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+  font-size: 12.5px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  z-index: 50;
+}
+.toast[hidden] { display: none; }
+.toast button {
+  background: none;
+  border: 0;
+  color: var(--accent);
+  font: inherit;
+  padding: 0;
+}

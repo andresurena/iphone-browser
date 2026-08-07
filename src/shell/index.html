@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
+  <title>iPhone Browser</title>
+  <link rel="stylesheet" href="shell.css" />
+</head>
+<body>
+
+  <!-- ------------------------------------------------------ app toolbar -->
+  <header id="toolbar">
+    <div class="traffic-spacer"></div>
+
+    <div class="group">
+      <button id="back" class="icon" title="Back (⌘[)" disabled>
+        <svg viewBox="0 0 16 16"><path d="M10 3 5 8l5 5"/></svg>
+      </button>
+      <button id="forward" class="icon" title="Forward (⌘])" disabled>
+        <svg viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"/></svg>
+      </button>
+      <button id="reload" class="icon" title="Reload (⌘R)">
+        <svg viewBox="0 0 16 16">
+          <path d="M13 8a5 5 0 1 1-1.6-3.7"/>
+          <path d="M13.2 2.6v2.7h-2.7"/>
+        </svg>
+      </button>
+    </div>
+
+    <div id="urlwrap">
+      <span id="lock" class="lock" hidden>
+        <svg viewBox="0 0 16 16"><path d="M4.5 7V5a3.5 3.5 0 0 1 7 0v2"/><rect x="3.2" y="7" width="9.6" height="6.4" rx="1.6"/></svg>
+      </span>
+      <input id="url" type="text" spellcheck="false" autocomplete="off"
+             placeholder="Enter a URL or localhost:3000" />
+      <span id="spinner" class="spinner" hidden></span>
+    </div>
+  </header>
+
+  <!-- ---------------------------------------------------------- stage -->
+  <main id="stage">
+    <div id="phoneScaler">
+      <div id="phone">
+
+        <span class="btn action"></span>
+        <span class="btn vol-up"></span>
+        <span class="btn vol-down"></span>
+        <span class="btn power"></span>
+        <span class="btn camera"></span>
+
+        <div class="frame">
+          <div class="screen">
+
+            <!-- the page -->
+            <webview id="frameview" partition="persist:ios" allowpopups></webview>
+
+            <!-- ------------------------------------------ iOS status bar -->
+            <div id="sbIos" class="statusbar ios">
+              <div class="time" id="clockIos">9:41</div>
+              <div class="indicators">
+                <svg class="si sig" viewBox="0 0 17 11" aria-label="Cellular">
+                  <rect x="0"     y="6.6" width="3" height="4.4" rx="1.1"/>
+                  <rect x="4.67"  y="4.4" width="3" height="6.6" rx="1.1"/>
+                  <rect x="9.33"  y="2.2" width="3" height="8.8" rx="1.1"/>
+                  <rect x="14"    y="0"   width="3" height="11"  rx="1.1"/>
+                </svg>
+                <svg class="si wifi" viewBox="0 0 16.2 12" aria-label="Wi-Fi">
+                  <path class="arc" d="M1.76 4.78a8.4 8.4 0 0 1 12.48 0"/>
+                  <path class="arc" d="M4.43 7.19a4.8 4.8 0 0 1 7.14 0"/>
+                  <circle cx="8.1" cy="10.2" r="1.35"/>
+                </svg>
+                <svg class="si batt" viewBox="0 0 27.4 13" aria-label="Battery">
+                  <rect class="shell" x="0.6" y="0.6" width="24" height="11.8" rx="4.2"/>
+                  <rect class="fill"  x="2"   y="2"   width="21.2" height="9" rx="2.8"/>
+                  <path class="cap" d="M26.1 4.9v3.2a2.1 2.1 0 0 0 0-3.2z"/>
+                </svg>
+              </div>
+            </div>
+
+            <!-- -------------------------------------- Android status bar -->
+            <div id="sbAndroid" class="statusbar android">
+              <div class="time" id="clockAndroid">9:41</div>
+              <div class="indicators">
+                <svg class="si wifi-md" viewBox="0 0 20 16" aria-label="Wi-Fi">
+                  <path d="M10 15.2 0.9 5.4a12.6 12.6 0 0 1 18.2 0z"/>
+                </svg>
+                <svg class="si sig-md" viewBox="0 0 16 16" aria-label="Cellular">
+                  <path d="M1 15h14V1z"/>
+                </svg>
+                <svg class="si batt-md" viewBox="0 0 25.5 12" aria-label="Battery">
+                  <rect class="shell" x="0.5" y="0.5" width="21" height="11" rx="3.2"/>
+                  <rect class="fill"  x="1.9" y="1.9" width="18.2" height="8.2" rx="2"/>
+                  <rect class="cap"   x="22.6" y="3.9" width="2" height="4.2" rx="1"/>
+                </svg>
+              </div>
+            </div>
+
+            <!-- front camera: Dynamic Island or punch hole -->
+            <div id="island" class="island"></div>
+
+            <!-- ------------------------ Safari · iOS 26 floating capsule -->
+            <div id="uiSafariGlass" class="ui safari-glass">
+              <button class="glass round" data-back title="Back">
+                <svg viewBox="0 0 24 24"><path d="M14.5 5 8 12l6.5 7"/></svg>
+              </button>
+              <div class="glass gpill">
+                <span class="gicon">
+                  <svg viewBox="0 0 24 24"><circle cx="10.6" cy="10.6" r="6.6"/><path d="M15.4 15.4 20.4 20.4"/></svg>
+                </span>
+                <span class="host" data-host-or-search>Search or enter website</span>
+                <span class="gicon">
+                  <svg viewBox="0 0 24 24"><rect x="9" y="2.6" width="6" height="11" rx="3"/><path d="M5.4 11.4a6.6 6.6 0 0 0 13.2 0"/><path d="M12 18v3.4"/></svg>
+                </span>
+              </div>
+              <button class="glass round" title="Menu">
+                <svg viewBox="0 0 24 24"><circle cx="5.4" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="18.6" cy="12" r="1.9"/></svg>
+              </button>
+            </div>
+
+            <!-- ------------------------------------- Chrome · iOS top bar -->
+            <div id="uiChromeIosTop" class="ui top-bar chrome-ios-top">
+              <div class="cpill">
+                <span class="cicon" title="Lens">
+                  <svg viewBox="0 0 24 24">
+                    <rect x="2.6" y="5.4" width="18.8" height="14.4" rx="3.4"/>
+                    <circle cx="12" cy="12.6" r="3.4"/>
+                    <path d="M8.6 5.4 9.8 3h4.4l1.2 2.4"/>
+                  </svg>
+                </span>
+                <span class="host" data-host>example.com</span>
+                <span class="cicon" title="Share">
+                  <svg viewBox="0 0 24 24"><path d="M12 15.5V3.2"/><path d="M8 7.2 12 3.2l4 4"/><path d="M5.5 11.5v9h13v-9"/></svg>
+                </span>
+              </div>
+            </div>
+
+            <!-- ---------------------------------- Chrome · iOS bottom bar -->
+            <div id="uiChromeIosBottom" class="ui chrome-ios-bottom">
+              <button class="tb" data-back title="Back">
+                <svg viewBox="0 0 24 24"><path d="M20 12H4.6"/><path d="M10.6 5.4 4 12l6.6 6.6"/></svg>
+              </button>
+              <button class="tb" data-forward title="Forward">
+                <svg viewBox="0 0 24 24"><path d="M4 12h15.4"/><path d="M13.4 5.4 20 12l-6.6 6.6"/></svg>
+              </button>
+              <button class="tb plus" title="New tab">
+                <svg viewBox="0 0 24 24"><path d="M12 5.6v12.8M5.6 12h12.8"/></svg>
+              </button>
+              <button class="tb boxed" title="Tabs">
+                <svg viewBox="0 0 24 24"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="4"/></svg>
+                <span>2</span>
+              </button>
+              <button class="tb" title="Menu">
+                <svg viewBox="0 0 24 24"><circle cx="5.4" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="18.6" cy="12" r="1.9"/></svg>
+              </button>
+            </div>
+
+            <!-- ----------------------------------- Safari · landscape UI -->
+            <div id="uiSafariTop" class="ui top-bar safari-top">
+              <button class="tb" data-back title="Back">
+                <svg viewBox="0 0 24 24"><path d="M15 4 7 12l8 8"/></svg>
+              </button>
+              <button class="tb" data-forward title="Forward">
+                <svg viewBox="0 0 24 24"><path d="M9 4l8 8-8 8"/></svg>
+              </button>
+              <div class="pill">
+                <span class="aa">A<small>A</small></span>
+                <span class="host" data-host>example.com</span>
+                <button class="mini" data-reload title="Reload">
+                  <svg viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.6-3.7"/><path d="M13.2 2.6v2.7h-2.7"/></svg>
+                </button>
+              </div>
+              <button class="tb" title="Share">
+                <svg viewBox="0 0 24 24"><path d="M12 15.5V3.2"/><path d="M8 7.2 12 3.2l4 4"/><path d="M5.5 11.5v9h13v-9"/></svg>
+              </button>
+              <button class="tb" title="Tabs">
+                <svg viewBox="0 0 24 24"><rect x="3.2" y="6.6" width="12" height="12" rx="2.4"/><path d="M8.8 6.6v-4h12v12h-4"/></svg>
+              </button>
+            </div>
+
+            <!-- ---------------------------------------------- Vivaldi UI -->
+            <div id="uiVivaldi" class="ui vivaldi">
+              <div class="searchrow">
+                <div class="field"><span data-host-or-placeholder>Search Google or type URL</span></div>
+                <button class="vlogo" title="Vivaldi menu">
+                  <svg viewBox="0 0 24 24">
+                    <rect x="1.4" y="1.4" width="21.2" height="21.2" rx="6.2" class="solid"/>
+                    <path d="M6.6 7.6h3.1l2.3 6.4 2.3-6.4h3.1l-3.9 9.4h-3z" class="knock"/>
+                  </svg>
+                </button>
+              </div>
+              <div class="vtabbar">
+                <button class="tb" title="Panels">
+                  <svg viewBox="0 0 24 24"><rect x="2.6" y="4.6" width="18.8" height="14.8" rx="2.4"/><path d="M9.4 4.6v14.8"/></svg>
+                </button>
+                <button class="tb" data-back title="Back">
+                  <svg viewBox="0 0 24 24"><path d="M15 4 7 12l8 8"/></svg>
+                </button>
+                <button class="tb" data-reload title="Search">
+                  <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M16.2 16.2 21 21"/></svg>
+                </button>
+                <button class="tb" data-forward title="Forward">
+                  <svg viewBox="0 0 24 24"><path d="M9 4l8 8-8 8"/></svg>
+                </button>
+                <button class="tb" title="Tabs">
+                  <svg viewBox="0 0 24 24"><rect x="2.6" y="2.6" width="18.8" height="18.8" rx="4.4"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- --------------------------------------- Chrome Android UI -->
+            <div id="uiChrome" class="ui top-bar chrome-android">
+              <div class="omnibox">
+                <span class="glock">
+                  <svg viewBox="0 0 16 16"><path d="M4.6 7.2V5.3a3.4 3.4 0 0 1 6.8 0v1.9"/><rect x="3.4" y="7.2" width="9.2" height="6.2" rx="1.5"/></svg>
+                </span>
+                <span class="host" data-host>example.com</span>
+              </div>
+              <button class="gtabs" title="Tabs"><span>8</span></button>
+              <button class="gmenu" title="Menu">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg>
+              </button>
+            </div>
+
+            <!-- Android gesture strip below the page -->
+            <div id="uiChromeNav" class="ui chrome-nav"></div>
+
+            <!-- home indicator / gesture bar -->
+            <div id="homebar" class="homebar"></div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="meta" class="meta"></div>
+  </main>
+
+  <!-- ----------------------------------------------------- device bar -->
+  <footer id="devicebar">
+    <select id="device" title="Device"></select>
+    <select id="browser" title="Browser interface"></select>
+    <select id="ua" title="User agent"></select>
+    <select id="zoom" title="Zoom">
+      <option value="fit">Fit</option>
+      <option value="1">100%</option>
+      <option value="0.85">85%</option>
+      <option value="0.75">75%</option>
+      <option value="0.5">50%</option>
+    </select>
+
+    <div class="spring"></div>
+
+    <button id="rotate" class="icon" title="Rotate (⌘⌃R)">
+      <svg viewBox="0 0 16 16">
+        <path d="M12.5 5.4A5.2 5.2 0 1 0 12.5 10.6"/>
+        <path d="M10.4 11.8 12.5 10.6 12.5 13"/>
+      </svg>
+    </button>
+    <button id="chrome" class="icon" title="Show browser interface (⌘⇧B)">
+      <svg viewBox="0 0 16 16">
+        <rect x="3.5" y="1.8" width="9" height="12.4" rx="2"/>
+        <path d="M3.5 11.2h9"/>
+      </svg>
+    </button>
+    <button id="scheme" class="icon" title="Color scheme">
+      <svg viewBox="0 0 16 16">
+        <circle cx="8" cy="8" r="5"/>
+        <path d="M8 3a5 5 0 0 1 0 10z" class="half"/>
+      </svg>
+    </button>
+    <button id="shot" class="icon" title="Screenshot to Desktop (⌘S) — ⌥-click for full page">
+      <svg viewBox="0 0 16 16">
+        <rect x="1.8" y="4" width="12.4" height="9" rx="2"/>
+        <circle cx="8" cy="8.5" r="2.6"/>
+        <path d="M5.6 4l1-1.6h2.8l1 1.6"/>
+      </svg>
+    </button>
+    <button id="devtools" class="icon" title="Web Inspector (⌘⌥I)">
+      <svg viewBox="0 0 16 16">
+        <path d="M6 4.5 2.5 8 6 11.5"/>
+        <path d="M10 4.5 13.5 8 10 11.5"/>
+      </svg>
+    </button>
+  </footer>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="shell.js"></script>
+</body>
+</html>

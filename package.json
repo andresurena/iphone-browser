@@ -1,0 +1,61 @@
+{
+  "name": "iphone-browser",
+  "version": "0.1.0",
+  "description": "A native Mac app that behaves like the browser on your phone \u2014 a real Chromium browser inside an iPhone or Pixel frame.",
+  "main": "src/main.js",
+  "author": "Andr\u00e9s Ure\u00f1a",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "icon": "electron scripts/make-icon.js",
+    "build": "electron-builder --mac --arm64",
+    "dist": "npm run icon && npm run build"
+  },
+  "build": {
+    "appId": "com.andresurena.iphonebrowser",
+    "productName": "iPhone Browser",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "build/icon.icns",
+      "identity": null
+    }
+  },
+  "devDependencies": {
+    "electron": "^43.3.0",
+    "electron-builder": "^26.15.3"
+  },
+  "keywords": [
+    "electron",
+    "mac",
+    "ios",
+    "android",
+    "iphone",
+    "pixel",
+    "responsive",
+    "mobile",
+    "preview",
+    "devtools",
+    "emulator"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/andresurena/iphone-browser.git"
+  }
+}
