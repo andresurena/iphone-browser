@@ -303,9 +303,12 @@ select {
   transform: translate(50%, -50%);
   gap: 6px;
 }
-.si.sig  { width: 17px;   height: 11px; }
-.si.wifi { width: 15.5px; height: 11.5px; }
-.si.batt { width: 27.4px; height: 13px; }
+/* Sized to match the clock's cap-height (17px semibold ≈ 12.2px), same as
+   real iOS — the icon cluster should read as one weight with the time, not
+   smaller or fainter. Each keeps its own aspect ratio, just scaled up. */
+.si.sig  { width: 20px;   height: 13px; }
+.si.wifi { width: 17.5px; height: 13px; }
+.si.batt { width: 28px;   height: 13.5px; }
 
 .si.wifi .arc {
   fill: none;
@@ -313,8 +316,8 @@ select {
   stroke-width: 2.05;
   stroke-linecap: round;
 }
-.si.batt .shell { fill: none; stroke: currentColor; stroke-width: 1.1; opacity: .36; }
-.si.batt .cap { opacity: .36; }
+.si.batt .shell { fill: none; stroke: currentColor; stroke-width: 1.2; }
+.si.batt .cap { opacity: .9; }
 
 /* Android: clock hard left, icons hard right */
 .statusbar.android .time {
@@ -329,11 +332,11 @@ select {
   transform: translateY(-50%);
   gap: 6px;
 }
-.si.wifi-md { width: 16px; height: 12.8px; }
-.si.sig-md  { width: 13px; height: 13px; }
-.si.batt-md { width: 24px; height: 11.3px; }
-.si.batt-md .shell { fill: none; stroke: currentColor; stroke-width: 1.1; opacity: .4; }
-.si.batt-md .cap { opacity: .4; }
+.si.wifi-md { width: 17px;   height: 13.6px; }
+.si.sig-md  { width: 13.5px; height: 13.5px; }
+.si.batt-md { width: 25.5px; height: 12px; }
+.si.batt-md .shell { fill: none; stroke: currentColor; stroke-width: 1.2; }
+.si.batt-md .cap { opacity: .9; }
 
 /* ------------------------------------- front camera: island or punch hole */
 .island {
