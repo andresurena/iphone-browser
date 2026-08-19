@@ -79,6 +79,10 @@ function safeCall(primary, fallback, dflt) {
   wireUI();
   tickClock();
   setInterval(tickClock, 10_000);
+
+  // Kick off the first navigation ourselves. A <webview> with no src never
+  // creates its guest, so waiting for dom-ready to start would wait forever.
+  go(S.url || 'about:blank');
 })();
 
 function rebuildBrowserSelect() {
@@ -396,13 +400,8 @@ function paintSchemeButton() {
 
 /* ------------------------------------------------------------ webview */
 function wireWebview() {
-  wv.addEventListener('dom-ready', async () => {
-    if (!booted) {
-      booted = true;
-      await applyEmulation();
-      if (S.url) go(S.url);
-      return;
-    }
+  wv.addEventListener('dom-ready', () => {
+    booted = true;
     applyEmulation();
     sampleTheme();
   });
