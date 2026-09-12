@@ -14,6 +14,12 @@ const buildMenu = require('./menu');
 
 let win = null;
 
+// Apple's trademark guidelines forbid "iPhone" in an App Store app's name.
+// `process.mas` is set by Electron only inside an actual Mac App Store
+// build, so this switches automatically without touching the GitHub /
+// direct-download identity everywhere else.
+const APP_NAME = process.mas ? 'Responsive Phone Browser' : 'iPhone Browser';
+
 /* ------------------------------------------------------------------ state */
 
 const statePath = () => path.join(app.getPath('userData'), 'state.json');
@@ -152,7 +158,7 @@ function createWindow() {
     minWidth: 580,
     minHeight: 500,
     show: false,
-    title: 'iPhone Browser',
+    title: APP_NAME,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 14, y: 19 },
     backgroundColor: '#1b1b1f',
@@ -188,6 +194,7 @@ ipcMain.handle('state:get', () => ({
   browsers: BROWSERS,
   userAgents: USER_AGENTS,
   systemDark: nativeTheme.shouldUseDarkColors,
+  appName: APP_NAME,
 }));
 
 ipcMain.handle('state:set', (_e, patch) => saveState(patch));

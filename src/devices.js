@@ -182,7 +182,7 @@ const DEFAULTS = {
   zoom: 'fit',             // 'fit' | 1 | 0.85 | 0.75 | 0.5
   showChrome: true,        // draw the browser UI and shrink the viewport
   colorScheme: 'system',   // 'system' | 'light' | 'dark'
-  url: 'https://andresurena.com',
+  url: '',                 // blank on a fresh install; nobody wants a stranger's site to load
   showMeta: false,         // the "440 × 776 css px · @3x · …" readout — View menu only
 };
 

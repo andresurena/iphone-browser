@@ -6,11 +6,15 @@
   "author": "Andr\u00e9s Ure\u00f1a",
   "license": "MIT",
   "private": true,
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "electron .",
     "icon": "electron scripts/make-icon.js",
-    "build": "electron-builder --mac --arm64",
-    "dist": "npm run icon && npm run build"
+    "build": "electron-builder --mac --universal",
+    "dist": "npm run icon && npm run build",
+    "spike": "electron-builder --mac mas-dev -c.appId=com.andresurena.responsivephonebrowser"
   },
   "build": {
     "appId": "com.andresurena.iphonebrowser",
@@ -29,12 +33,27 @@
         {
           "target": "dir",
           "arch": [
-            "arm64"
+            "universal"
           ]
         }
       ],
       "icon": "build/icon.icns",
       "identity": null
+    },
+    "mas": {
+      "category": "public.app-category.developer-tools",
+      "entitlements": "build/entitlements.mas.plist",
+      "entitlementsInherit": "build/entitlements.mas.inherit.plist",
+      "hardenedRuntime": false,
+      "icon": "build/icon.icns"
+    },
+    "masDev": {
+      "entitlements": "build/entitlements.mas.plist",
+      "entitlementsInherit": "build/entitlements.mas.inherit.plist",
+      "hardenedRuntime": false,
+      "type": "development",
+      "provisioningProfile": "build/Responsive_Phone_Browser_Mac_Development.provisionprofile",
+      "identity": "Apple Development: Andres Urena (DNFZ36X536)"
     }
   },
   "devDependencies": {

@@ -17,6 +17,15 @@ the same device-emulation engine Chrome DevTools uses, so the viewport, pixel
 ratio, touch events, safe-area insets and user agent all behave like the real
 device.
 
+## Requirements
+
+- macOS, Apple Silicon or Intel — the build produces a universal binary.
+- [Xcode Command Line Tools](https://developer.apple.com/xcode/resources/) —
+  `xcode-select --install`. Needed for the native-module rebuild step
+  `electron-builder` runs; without it `npm run dist` fails with a compiler
+  error rather than a clear message.
+- Node 18 or later.
+
 ## Running it
 
 ```bash
@@ -30,7 +39,7 @@ To get an actual app you can keep in your Dock:
 npm run dist
 ```
 
-That writes `iPhone Browser.app` into `dist/mac-arm64/` — drag it to
+That writes `iPhone Browser.app` into `dist/mac-universal/` — drag it to
 /Applications. Building it yourself means macOS treats it as a local app and
 opens it without any Gatekeeper complaints.
 

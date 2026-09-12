@@ -29,6 +29,7 @@ let DEVICES = [];
 let BROWSERS = [];
 let UAS = [];
 let S = {};
+let APP_NAME = 'iPhone Browser';
 let device = null;
 let browser = null;
 let firstLayoutDone = false;
@@ -79,6 +80,7 @@ function safeCall(primary, fallback, dflt) {
   BROWSERS = data.browsers;
   UAS = data.userAgents;
   S = data.state;
+  APP_NAME = data.appName || APP_NAME;
 
   device = deviceById(S.deviceId);
   browser = browserById(S.browserId, device.platform);
@@ -87,8 +89,9 @@ function safeCall(primary, fallback, dflt) {
   // (synchronous but nonzero) DOM setup below — so the network request
   // begins as early as possible. Not activated yet: activation needs
   // layout() to have run first, or the webview would briefly render at an
-  // unstyled 0×0 size.
-  createTab(S.url || 'about:blank', { activate: false });
+  // unstyled 0×0 size. A fresh install has no saved URL — leave it truly
+  // blank and focus the address bar, same as opening a new tab.
+  createTab(S.url || null, { activate: false, focus: !S.url });
 
   $('device').innerHTML = DEVICES
     .map((d) => `<option value="${d.id}">${d.name}</option>`).join('');
@@ -600,7 +603,7 @@ function attachWebviewListeners(el, tabId) {
     tab.title = e.title || hostnameOf(tab.url) || 'New Tab';
     renderTabs();
     if (tabId === activeTabId) {
-      document.title = e.title ? `${e.title} — iPhone Browser` : 'iPhone Browser';
+      document.title = e.title ? `${e.title} — ${APP_NAME}` : APP_NAME;
     }
   });
 
