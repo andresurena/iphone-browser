@@ -203,6 +203,10 @@ function renderTabs() {
   $('newTab').title = tabs.length >= MAX_TABS
     ? `Limited to ${MAX_TABS} tabs for speed and stability`
     : `New Tab (⌘T) — up to ${MAX_TABS} at a time`;
+
+  // the drawn browser skins (Chrome's tab-count pill) mirror the real count —
+  // these are illustrations of a real phone's UI, not a separate concept
+  for (const el of all('[data-tab-count]')) el.textContent = String(tabs.length);
 }
 
 /* ------------------------------------------------------------- layout */
@@ -440,6 +444,7 @@ function wireUI() {
   for (const el of all('[data-back]')) el.onclick = () => nav.back();
   for (const el of all('[data-forward]')) el.onclick = () => nav.forward();
   for (const el of all('[data-reload]')) el.onclick = () => activeWv()?.reload();
+  for (const el of all('[data-new-tab]')) el.onclick = requestNewTab;
 
   $('newTab').onclick = requestNewTab;
 
