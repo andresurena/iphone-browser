@@ -342,13 +342,10 @@ function activeSkins(landscape) {
    stale viewport. */
 const emulationChains = new WeakMap();
 
-function applyEmulationTo(el) {
-  let wcId;
-  try { wcId = el.getWebContentsId(); } catch { return Promise.resolve(); } // guest not created yet
-
+function currentEmulationPayload() {
   const g = geometry();
   const ua = uaById(S.userAgentId);
-  const payload = {
+  return {
     viewWidth: g.viewW,
     viewHeight: g.viewH,
     screenWidth: g.w,
@@ -360,6 +357,13 @@ function applyEmulationTo(el) {
     landscape: g.landscape,
     safeArea: g.safeArea,
   };
+}
+
+function applyEmulationTo(el) {
+  let wcId;
+  try { wcId = el.getWebContentsId(); } catch { return Promise.resolve(); } // guest not created yet
+
+  const payload = currentEmulationPayload();
 
   const prior = emulationChains.get(el) || Promise.resolve();
   const chain = prior
@@ -725,13 +729,130 @@ function tickClock() {
   $('clockAndroid').textContent = now;
 }
 
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+function canvasToBase64(canvas) {
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => {
+      if (!blob) return resolve(null);
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(',')[1]);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    }, 'image/png');
+  });
+}
+
+// Page.captureScreenshot returns a tiled, corrupted image at dpr=3 on this
+// Chromium build — confirmed directly by capturing the same page at dpr 1, 2
+// and 3: only 3 breaks. Every device this app emulates uses dpr:3, so every
+// screenshot temporarily downshifts to this safe value and the captured
+// pixels are scaled back up to the device's real resolution, restoring live
+// emulation (and the real dpr) once the capture is done.
+const SAFE_CAPTURE_DPR = 2;
+
+/**
+ * Capture the active tab as a PNG at the device's real resolution, working
+ * around the dpr=3 capture bug above. For a full-page shot, scrolls in
+ * increments and stitches the results — a <webview>'s guest paints into a
+ * surface tied to its own on-screen DOM size, so asking CDP for a taller
+ * capture than that (captureBeyondViewport, or a taller declared height with
+ * an explicit clip) just tiles whatever's already painted; only ever asking
+ * for what's actually on screen avoids that entirely. (Known limitation:
+ * position:fixed/sticky elements appear once per tile, same as any
+ * scroll-and-stitch screenshot tool.)
+ *
+ * Returns a base64 PNG (no data-URL prefix), or null on failure.
+ */
+async function captureScreenshotPixels(el, { fullPage }) {
+  const realDpr = device.dpr;
+  const captureDpr = Math.min(realDpr, SAFE_CAPTURE_DPR);
+  const scaleUp = realDpr / captureDpr;
+  const g = geometry();
+  const targetWidth = Math.round(g.viewW * realDpr);
+
+  if (captureDpr !== realDpr) {
+    await window.bridge.emulate(el.getWebContentsId(),
+      { ...currentEmulationPayload(), dpr: captureDpr });
+    await new Promise((r) => setTimeout(r, 60));   // let the resize actually land
+  }
+
+  try {
+    if (!fullPage) {
+      const tile = await window.bridge.captureTile(el.getWebContentsId());
+      if (!tile) return null;
+      if (scaleUp === 1) return tile;
+      const img = await loadImage(`data:image/png;base64,${tile}`).catch(() => null);
+      if (!img) return null;
+      const canvas = document.createElement('canvas');
+      canvas.width = targetWidth;
+      canvas.height = Math.round(g.viewH * realDpr);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      return canvasToBase64(canvas);
+    }
+
+    let scrollHeightCss;
+    try {
+      scrollHeightCss = await el.executeJavaScript(
+        'Math.ceil(document.documentElement.scrollHeight)');
+    } catch {
+      return null;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = Math.max(1, Math.round(scrollHeightCss * realDpr));
+    const ctx = canvas.getContext('2d');
+
+    let lastY = -1;
+    for (let target = 0; ; target += g.viewH) {
+      let y;
+      try {
+        await el.executeJavaScript(`window.scrollTo(0, ${target})`);
+        await new Promise((r) => setTimeout(r, 80));   // let the scroll actually repaint
+        y = await el.executeJavaScript('window.scrollY');
+      } catch {
+        return null;
+      }
+      if (y === lastY) break;   // clamped at the bottom — no further progress
+      lastY = y;
+
+      const tile = await window.bridge.captureTile(el.getWebContentsId());
+      if (!tile) return null;
+      const img = await loadImage(`data:image/png;base64,${tile}`).catch(() => null);
+      if (!img) return null;
+      ctx.drawImage(img, 0, Math.round(y * realDpr), img.width * scaleUp, img.height * scaleUp);
+    }
+
+    try { await el.executeJavaScript('window.scrollTo(0, 0)'); } catch { /* best effort */ }
+    return canvasToBase64(canvas);
+  } finally {
+    if (captureDpr !== realDpr) await applyEmulationTo(el);   // restore the real dpr
+  }
+}
+
 async function screenshot({ fullPage = false } = {}) {
   const el = activeWv();
   if (!el) return;
+
+  const pngBase64 = await captureScreenshotPixels(el, { fullPage });
+  if (!pngBase64) {
+    toast(fullPage ? 'Full-page capture failed — try a regular screenshot instead' : 'Screenshot failed');
+    return;
+  }
+
   const res = await window.bridge.screenshot(el.getWebContentsId(), {
     url: el.getURL(),
     device: device.name,
     fullPage,
+    stitchedPngBase64: pngBase64,
   });
   if (!res?.ok) {
     if (!res?.canceled) toast('Screenshot failed');   // a cancelled save panel isn't a failure

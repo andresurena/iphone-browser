@@ -73,6 +73,28 @@ const send = (wc, method, params) =>
     console.warn(`[cdp] ${method}:`, err.message);
   });
 
+// The full device-metrics override: viewport, window.screen, DPR and mobile
+// viewport semantics (a page with no <meta viewport> gets 980px). Shared with
+// the full-page screenshot path below, which temporarily overrides `height`
+// alone and needs to restore exactly this afterward.
+function deviceMetricsParams(opts) {
+  const { viewWidth, viewHeight, screenWidth, screenHeight, dpr, landscape } = opts;
+  return {
+    width: viewWidth,
+    height: viewHeight,
+    deviceScaleFactor: dpr,
+    mobile: true,
+    screenWidth,
+    screenHeight,
+    positionX: 0,
+    positionY: 0,
+    dontSetVisibleSize: false,
+    screenOrientation: landscape
+      ? { type: 'landscapePrimary', angle: 90 }
+      : { type: 'portraitPrimary', angle: 0 },
+  };
+}
+
 /**
  * Reproduce what Chrome DevTools' device toolbar does:
  *   - viewport + screen metrics, mobile viewport semantics, device pixel ratio
@@ -84,30 +106,12 @@ async function applyEmulation(wcId, opts) {
   const wc = webContents.fromId(wcId);
   if (!wc || wc.isDestroyed()) return { ok: false };
 
-  const {
-    viewWidth, viewHeight, screenWidth, screenHeight, dpr,
-    userAgent, platform, colorScheme, landscape, safeArea,
-  } = opts;
+  const { userAgent, platform, colorScheme, safeArea } = opts;
 
   wc.setUserAgent(userAgent);
 
   if (attachDebugger(wc)) {
-    // The full device-metrics override: viewport, window.screen, DPR and
-    // mobile viewport semantics (a page with no <meta viewport> gets 980px).
-    await send(wc, 'Emulation.setDeviceMetricsOverride', {
-      width: viewWidth,
-      height: viewHeight,
-      deviceScaleFactor: dpr,
-      mobile: true,
-      screenWidth,
-      screenHeight,
-      positionX: 0,
-      positionY: 0,
-      dontSetVisibleSize: false,
-      screenOrientation: landscape
-        ? { type: 'landscapePrimary', angle: 90 }
-        : { type: 'portraitPrimary', angle: 0 },
-    });
+    await send(wc, 'Emulation.setDeviceMetricsOverride', deviceMetricsParams(opts));
     await send(wc, 'Emulation.setUserAgentOverride', {
       userAgent,
       platform,
@@ -132,10 +136,10 @@ async function applyEmulation(wcId, opts) {
     // emulation, which covers the viewport but not window.screen / DPR.
     wc.enableDeviceEmulation({
       screenPosition: 'mobile',
-      screenSize: { width: screenWidth, height: screenHeight },
-      viewSize: { width: viewWidth, height: viewHeight },
+      screenSize: { width: opts.screenWidth, height: opts.screenHeight },
+      viewSize: { width: opts.viewWidth, height: opts.viewHeight },
       viewPosition: { x: 0, y: 0 },
-      deviceScaleFactor: dpr,
+      deviceScaleFactor: opts.dpr,
       scale: 1,
     });
   }
@@ -216,20 +220,42 @@ ipcMain.handle('devtools:toggle', (_e, wcId) => {
   });
 });
 
+// Page.captureScreenshot returns a tiled, corrupted image at dpr=3 on this
+// Chromium build (confirmed directly: dpr 1 and 2 both capture cleanly, only
+// 3 breaks) — and separately, a <webview>'s guest paints into a surface tied
+// to its own on-screen DOM size, so asking for a taller capture than that
+// (captureBeyondViewport, or a taller declared height with an explicit clip)
+// just tiles what's already painted rather than rendering more. The renderer
+// works around both: it captures at a safe dpr, scales the result up to the
+// device's real resolution, and — for full-page shots — scrolls in
+// increments and stitches the per-scroll-position tiles itself. This handler
+// is the primitive that gets called once per tile.
+ipcMain.handle('capture-tile', async (_e, wcId) => {
+  const wc = webContents.fromId(wcId);
+  if (!wc || wc.isDestroyed() || !attached.has(wc.id)) return null;
+  try {
+    const { data } = await wc.debugger.sendCommand('Page.captureScreenshot', { format: 'png' });
+    return data; // base64
+  } catch (err) {
+    console.warn('[cdp] capture-tile:', err.message);
+    return null;
+  }
+});
+
 ipcMain.handle('screenshot', async (_e, wcId, meta = {}) => {
   const wc = webContents.fromId(wcId);
   if (!wc || wc.isDestroyed()) return { ok: false };
 
-  // capturePage() renders at the Mac's scale factor (usually 2x). CDP honours
-  // the emulated device pixel ratio instead, so we get true @3x pixels — and
-  // full-page capture as a bonus.
+  // The renderer always does its own capture (see capture-tile above) and
+  // hands over the finished PNG here — this direct-CDP path only remains as
+  // a fallback for callers that don't. capturePage() renders at the Mac's
+  // own scale factor (usually 2x); CDP honours the emulated DPR instead.
   let buffer = null;
-  if (attached.has(wc.id)) {
+  if (meta.stitchedPngBase64) {
+    buffer = Buffer.from(meta.stitchedPngBase64, 'base64');
+  } else if (attached.has(wc.id)) {
     try {
-      const { data } = await wc.debugger.sendCommand('Page.captureScreenshot', {
-        format: 'png',
-        captureBeyondViewport: !!meta.fullPage,
-      });
+      const { data } = await wc.debugger.sendCommand('Page.captureScreenshot', { format: 'png' });
       buffer = Buffer.from(data, 'base64');
     } catch (err) {
       console.warn('[cdp] captureScreenshot:', err.message);

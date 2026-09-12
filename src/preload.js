@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('bridge', {
   emulate: (wcId, opts) => ipcRenderer.invoke('emulate', wcId, opts),
   toggleDevTools: (wcId) => ipcRenderer.invoke('devtools:toggle', wcId),
   screenshot: (wcId, meta) => ipcRenderer.invoke('screenshot', wcId, meta),
+  captureTile: (wcId) => ipcRenderer.invoke('capture-tile', wcId),
   fitWindow: (w, h) => ipcRenderer.invoke('window:fit', w, h),
   reveal: (filePath) => ipcRenderer.invoke('reveal', filePath),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
