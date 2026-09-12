@@ -733,8 +733,11 @@ async function screenshot({ fullPage = false } = {}) {
     device: device.name,
     fullPage,
   });
-  if (!res?.ok) return toast('Screenshot failed');
-  toast(`Saved ${res.width} × ${res.height}${fullPage ? ' full page' : ''} to Desktop`,
+  if (!res?.ok) {
+    if (!res?.canceled) toast('Screenshot failed');   // a cancelled save panel isn't a failure
+    return;
+  }
+  toast(`Saved ${res.width} × ${res.height}${fullPage ? ' full page' : ''}`,
     'Show in Finder', () => window.bridge.reveal(res.path));
 }
 

@@ -247,7 +247,22 @@ ipcMain.handle('screenshot', async (_e, wcId, meta = {}) => {
   })();
   const suffix = meta.fullPage ? ' full page' : '';
   const file = `${meta.device || 'iPhone'} — ${host} — ${stamp}${suffix}.png`;
-  const target = path.join(app.getPath('desktop'), file);
+
+  let target;
+  if (process.mas) {
+    // Sandboxed builds have no Desktop access at all — writing there is
+    // denied every time, for every user, not just occasionally. The save
+    // panel is what the files.user-selected.read-write entitlement actually
+    // authorizes: picking a location in it grants a one-time write there.
+    const { canceled, filePath } = await dialog.showSaveDialog(win, {
+      defaultPath: path.join(app.getPath('desktop'), file),
+      filters: [{ name: 'PNG Image', extensions: ['png'] }],
+    });
+    if (canceled || !filePath) return { ok: false, canceled: true };
+    target = filePath;
+  } else {
+    target = path.join(app.getPath('desktop'), file);
+  }
 
   try {
     fs.writeFileSync(target, buffer || image.toPNG());
