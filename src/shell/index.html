@@ -38,6 +38,14 @@
     </div>
   </header>
 
+  <!-- ------------------------------------------------------ tab strip -->
+  <div id="tabbar">
+    <div id="tabs"></div>
+    <button id="newTab" class="tab-add" title="New Tab (⌘T) — up to 4 at a time">
+      <svg viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg>
+    </button>
+  </div>
+
   <!-- ---------------------------------------------------------- stage -->
   <main id="stage">
     <div id="phoneScaler">
@@ -52,8 +60,9 @@
         <div class="frame">
           <div class="screen">
 
-            <!-- the page -->
-            <webview id="frameview" partition="persist:ios" allowpopups></webview>
+            <!-- one <webview> per open tab, created in shell.js; only the
+                 active tab's is visible (see .frameview / .frameview.active) -->
+            <div id="webviews"></div>
 
             <!-- ------------------------------------------ iOS status bar -->
             <div id="sbIos" class="statusbar ios">
@@ -233,7 +242,7 @@
       </div>
     </div>
 
-    <div id="meta" class="meta"></div>
+    <div id="meta" class="meta" hidden></div>
   </main>
 
   <!-- ----------------------------------------------------- device bar -->

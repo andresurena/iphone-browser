@@ -183,6 +183,7 @@ const DEFAULTS = {
   showChrome: true,        // draw the browser UI and shrink the viewport
   colorScheme: 'system',   // 'system' | 'light' | 'dark'
   url: 'https://andresurena.com',
+  showMeta: false,         // the "440 × 776 css px · @3x · …" readout — View menu only
 };
 
 const byId = (list, id, fallback) => list.find((d) => d.id === id) || fallback || list[0];

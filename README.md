@@ -54,17 +54,19 @@ Measured from the running app on an iPhone 16 Pro Max:
 
 ## Controls
 
-Top bar: back, forward, reload, address field.
+Top bar: back, forward, reload, address field. Below it, a tab strip.
 Bottom bar: device, browser interface, user agent, zoom, then rotate / browser
 UI / colour scheme / screenshot / Web Inspector.
 
 | | |
 |---|---|
 | ⌘L | focus the address field |
+| ⌘T | new tab |
 | ⌘R / ⌘⇧R | reload / reload ignoring cache |
 | ⌘[ / ⌘] | back / forward |
 | ⌘⌃R | rotate |
 | ⌘⇧B | show or hide the browser interface |
+| ⌘/ | show or hide the technical readout (viewport, DPR, zoom) |
 | ⌘0 … ⌘4 | zoom: fit, 100%, 85%, 75%, 50% |
 | ⌘⇧1 … ⌘⇧8 | switch device |
 | ⌘S / ⌘⇧S | screenshot / full-page screenshot to the Desktop |
@@ -80,6 +82,23 @@ pixels for a full iPhone 16 Pro Max screen, not your Mac's scale factor.
 
 Self-signed certificates on `localhost`, `*.local` and private LAN addresses are
 accepted automatically, so an HTTPS dev server just works.
+
+The `440 × 776 css px · @3x · 91% · Chrome` readout under the phone is off by
+default — most people don't need it. Turn it on from **View → Show Technical
+Info** (⌘/) when you want the exact numbers.
+
+## Tabs
+
+Up to **4 tabs**, in the strip below the address bar — not inside the
+simulated phone itself. All tabs share whatever device, browser skin,
+orientation and colour scheme you've selected; switching tabs only changes
+which page is showing.
+
+The cap is deliberate, not arbitrary: each tab is a full, separate Chromium
+process with its own live CDP session driving continuous device emulation.
+That's real weight per tab, and 4 is where the app stays fast and stable
+without turning into a general-purpose many-tab browser. Try to open a 5th and
+the app tells you so, right there.
 
 ## Devices
 

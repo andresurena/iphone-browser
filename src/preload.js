@@ -15,6 +15,9 @@ const MENU_CHANNELS = [
   'menu:zoom',
   'menu:device',
   'menu:reapply-emulation',
+  'menu:toggle-meta',
+  'menu:new-tab',
+  'menu:close-tab',
 ];
 
 contextBridge.exposeInMainWorld('bridge', {

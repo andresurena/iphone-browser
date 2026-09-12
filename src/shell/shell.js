@@ -4,12 +4,13 @@
 const $ = (id) => document.getElementById(id);
 const all = (sel) => Array.from(document.querySelectorAll(sel));
 
-const wv       = $('frameview');
-const phone    = $('phone');
-const scaler   = $('phoneScaler');
-const stage    = $('stage');
-const urlInput = $('url');
-const meta     = $('meta');
+const phone     = $('phone');
+const scaler    = $('phoneScaler');
+const stage     = $('stage');
+const urlInput  = $('url');
+const meta      = $('meta');
+const webviews  = $('webviews');
+const tabsEl    = $('tabs');
 
 const STATUS_BARS = { ios: $('sbIos'), android: $('sbAndroid') };
 const SKINS = {
@@ -22,13 +23,33 @@ const SKINS = {
   chromeNav:     $('uiChromeNav'),
 };
 
+const MAX_TABS = 4;
+
 let DEVICES = [];
 let BROWSERS = [];
 let UAS = [];
 let S = {};
 let device = null;
 let browser = null;
-let booted = false;
+let firstLayoutDone = false;
+
+/* ------------------------------------------------------------------ tabs
+   Each tab owns its own <webview>. All tabs share one simulated device —
+   switching tabs only changes which page is shown, not the phone/browser
+   being emulated (device, orientation, colour scheme, zoom stay global).
+
+   Capped at 4: each tab is a full out-of-process Chromium renderer with its
+   own live CDP session driving continuous device emulation. That's real
+   weight per tab, so the cap is what keeps every tab fast and stable rather
+   than turning this into a general-purpose many-tab browser. */
+let tabs = [];
+let activeTabId = null;
+let nextTabId = 1;
+
+const tabById   = (id) => tabs.find((t) => t.id === id);
+const activeTab = () => tabById(activeTabId);
+const activeWv  = () => activeTab()?.el || null;
+const isPrimary = (id) => tabs[0]?.id === id;   // the one whose URL survives a relaunch
 
 const deviceById  = (id) => DEVICES.find((d) => d.id === id) || DEVICES[0];
 const uaById      = (id) => UAS.find((u) => u.id === id) || UAS[0];
@@ -37,12 +58,13 @@ const browserById = (id, platform) =>
   BROWSERS.find((b) => b.id === id && b.platform === platform) || browsersFor(platform)[0];
 
 /* ---------------------------------------------------------- webview api
-   Electron keeps moving history APIs around; take whichever exists. */
+   Electron keeps moving history APIs around; take whichever exists. Both
+   resolve against whichever tab is active. */
 const nav = {
-  canBack:    () => safeCall(() => wv.navigationHistory.canGoBack(), () => wv.canGoBack(), false),
-  canForward: () => safeCall(() => wv.navigationHistory.canGoForward(), () => wv.canGoForward(), false),
-  back:       () => safeCall(() => wv.navigationHistory.goBack(), () => wv.goBack()),
-  forward:    () => safeCall(() => wv.navigationHistory.goForward(), () => wv.goForward()),
+  canBack:    () => safeCall(() => activeWv().navigationHistory.canGoBack(), () => activeWv().canGoBack(), false),
+  canForward: () => safeCall(() => activeWv().navigationHistory.canGoForward(), () => activeWv().canGoForward(), false),
+  back:       () => safeCall(() => activeWv().navigationHistory.goBack(), () => activeWv().goBack()),
+  forward:    () => safeCall(() => activeWv().navigationHistory.goForward(), () => activeWv().goForward()),
 };
 
 function safeCall(primary, fallback, dflt) {
@@ -61,6 +83,13 @@ function safeCall(primary, fallback, dflt) {
   device = deviceById(S.deviceId);
   browser = browserById(S.browserId, device.platform);
 
+  // Start the first tab's navigation immediately — before any of the
+  // (synchronous but nonzero) DOM setup below — so the network request
+  // begins as early as possible. Not activated yet: activation needs
+  // layout() to have run first, or the webview would briefly render at an
+  // unstyled 0×0 size.
+  createTab(S.url || 'about:blank', { activate: false });
+
   $('device').innerHTML = DEVICES
     .map((d) => `<option value="${d.id}">${d.name}</option>`).join('');
   $('ua').innerHTML = UAS
@@ -73,16 +102,11 @@ function safeCall(primary, fallback, dflt) {
   paintSchemeButton();
   rebuildBrowserSelect();
 
-  wv.setAttribute('useragent', uaById(S.userAgentId).value);
-
   layout();
+  activateTab(tabs[0].id);
   wireUI();
   tickClock();
   setInterval(tickClock, 10_000);
-
-  // Kick off the first navigation ourselves. A <webview> with no src never
-  // creates its guest, so waiting for dom-ready to start would wait forever.
-  go(S.url || 'about:blank');
 })();
 
 function rebuildBrowserSelect() {
@@ -90,6 +114,95 @@ function rebuildBrowserSelect() {
     .map((b) => `<option value="${b.id}">${b.name}</option>`).join('');
   $('browser').value = browser.id;
   $('ua').value = uaById(S.userAgentId).id;
+}
+
+/* --------------------------------------------------------------- tabs */
+function createTab(url, { activate = true, focus = false } = {}) {
+  const el = document.createElement('webview');
+  el.className = 'frameview';
+  el.setAttribute('partition', 'persist:ios');
+  el.setAttribute('allowpopups', '');
+  el.setAttribute('useragent', uaById(S.userAgentId).value);
+  webviews.appendChild(el);
+
+  const tab = { id: nextTabId++, el, title: '', url: '' };
+  tabs.push(tab);
+  attachWebviewListeners(el, tab.id);
+  renderTabs();
+
+  if (activate) activateTab(tab.id);
+  if (url) go(url, tab.id);
+  if (focus) { urlInput.focus(); urlInput.select(); }
+  return tab;
+}
+
+function requestNewTab() {
+  if (tabs.length >= MAX_TABS) {
+    toast(`Limited to ${MAX_TABS} tabs — keeps every preview fast and stable.`);
+    return;
+  }
+  createTab(null, { activate: true, focus: true });
+}
+
+function activateTab(id) {
+  const tab = tabById(id);
+  if (!tab) return;
+  activeTabId = id;
+
+  for (const t of tabs) t.el.classList.toggle('active', t.id === id);
+  renderTabs();
+  // an explicit tab switch always wins, even if the address bar happens to
+  // still hold focus (e.g. right after opening a new tab) — showing the
+  // previous tab's URL for the page now on screen would be a real bug.
+  updateChromeForActiveTab({ forceUrlInput: true });
+  applyEmulationTo(tab.el);
+  sampleTheme(tab.el);
+}
+
+function closeTab(id) {
+  if (tabs.length <= 1) return;   // never close the last tab
+  const idx = tabs.findIndex((t) => t.id === id);
+  if (idx === -1) return;
+
+  const [closed] = tabs.splice(idx, 1);
+  closed.el.remove();
+
+  if (activeTabId === id) {
+    const next = tabs[idx] || tabs[idx - 1] || tabs[0];
+    activateTab(next.id);
+  } else {
+    renderTabs();
+  }
+}
+
+function renderTabs() {
+  tabsEl.innerHTML = '';
+  const onlyTab = tabs.length === 1;
+
+  for (const t of tabs) {
+    const btn = document.createElement('button');
+    btn.className = 'tab' + (t.id === activeTabId ? ' active' : '') + (onlyTab ? ' only-tab' : '');
+    btn.title = t.title || t.url || 'New Tab';
+    btn.onclick = () => { if (t.id !== activeTabId) activateTab(t.id); };
+
+    const label = document.createElement('span');
+    label.className = 'label';
+    label.textContent = t.title || (t.url ? hostnameOf(t.url) : 'New Tab');
+    btn.appendChild(label);
+
+    const close = document.createElement('span');
+    close.className = 'close';
+    close.title = 'Close Tab';
+    close.innerHTML = '<svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg>';
+    close.onclick = (e) => { e.stopPropagation(); closeTab(t.id); };
+    btn.appendChild(close);
+
+    tabsEl.appendChild(btn);
+  }
+
+  $('newTab').title = tabs.length >= MAX_TABS
+    ? `Limited to ${MAX_TABS} tabs for speed and stability`
+    : `New Tab (⌘T) — up to ${MAX_TABS} at a time`;
 }
 
 /* ------------------------------------------------------------- layout */
@@ -183,12 +296,21 @@ function layout() {
 
   paintChrome();
 
+  meta.hidden = !S.showMeta;
   // only name the user agent when it's been overridden away from the browser's
   const uaNote = S.userAgentId === browser.userAgentId
     ? '' : ` · UA ${uaById(S.userAgentId).name}`;
   meta.textContent =
     `${g.viewW} × ${g.viewH} css px · screen ${g.w} × ${g.h} · @${device.dpr}x · ` +
     `${Math.round(scale * 100)}% · ${browser.name}${uaNote}`;
+
+  // CSS custom properties above are what turn the raw HTML into an actual
+  // phone; before this first runs, #phoneScaler stays invisible so nothing
+  // unstyled ever flashes on screen (see shell.css).
+  if (!firstLayoutDone) {
+    firstLayoutDone = true;
+    scaler.classList.add('ready');
+  }
 
   applyEmulation();
 }
@@ -205,12 +327,18 @@ function activeSkins(landscape) {
   }
 }
 
-// Emulation calls are serialised: two settings changed in quick succession
-// must not land out of order, or the older payload wins.
-let emulationChain = Promise.resolve();
+/* ---------------------------------------------------------- emulation
+   Emulation calls are serialised per webview: two settings changed in quick
+   succession must not land out of order, or the older payload wins. Every
+   open tab is kept emulated to the current device/browser/orientation, not
+   just the visible one, so switching back to a background tab never shows a
+   stale viewport. */
+const emulationChains = new WeakMap();
 
-function applyEmulation() {
-  if (!booted) return emulationChain;
+function applyEmulationTo(el) {
+  let wcId;
+  try { wcId = el.getWebContentsId(); } catch { return Promise.resolve(); } // guest not created yet
+
   const g = geometry();
   const ua = uaById(S.userAgentId);
   const payload = {
@@ -226,10 +354,16 @@ function applyEmulation() {
     safeArea: g.safeArea,
   };
 
-  emulationChain = emulationChain
-    .then(() => window.bridge.emulate(wv.getWebContentsId(), payload))
+  const prior = emulationChains.get(el) || Promise.resolve();
+  const chain = prior
+    .then(() => window.bridge.emulate(wcId, payload))
     .catch((err) => console.warn('emulate failed', err));
-  return emulationChain;
+  emulationChains.set(el, chain);
+  return chain;
+}
+
+function applyEmulation() {
+  return Promise.all(tabs.map((t) => applyEmulationTo(t.el)));
 }
 
 /* ----------------------------------------------------------- settings */
@@ -240,18 +374,24 @@ function set(patch, { relayout = true } = {}) {
 }
 
 /**
- * Persist a patch and push its user agent onto the webview. Returns true when
- * the user agent actually changed — the caller reloads, because a live
- * document keeps whatever navigator.userAgent it was loaded with.
+ * Persist a patch and push its user agent onto every open tab's webview.
+ * Returns true when the user agent actually changed — the caller reloads the
+ * active tab, because a live document keeps whatever navigator.userAgent it
+ * was loaded with. Background tabs pick up the new UA next time they load.
  */
 function applyUa(patch) {
   const before = S.userAgentId;
   set(patch, { relayout: false });
-  wv.setAttribute('useragent', uaById(S.userAgentId).value);
+  const value = uaById(S.userAgentId).value;
+  for (const t of tabs) t.el.setAttribute('useragent', value);
   return S.userAgentId !== before;
 }
 
 /* --------------------------------------------------------- navigation */
+function hostnameOf(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
+}
+
 function normalizeUrl(raw) {
   const input = raw.trim();
   if (!input) return null;
@@ -266,30 +406,42 @@ function normalizeUrl(raw) {
   return `https://duckduckgo.com/?q=${encodeURIComponent(input)}`;
 }
 
-function go(raw) {
+function go(raw, tabId = activeTabId) {
   const url = normalizeUrl(raw ?? urlInput.value);
   if (!url) return;
-  urlInput.value = url;
-  wv.src = url;
-  set({ url }, { relayout: false });
+  const tab = tabById(tabId);
+  if (!tab) return;
+
+  tab.url = url;
+  tab.el.src = url;
+  tab.title = hostnameOf(url);
+
+  if (tab.id === activeTabId) {
+    urlInput.value = url;
+    updateChromeForActiveTab();
+  }
+  if (isPrimary(tab.id)) set({ url }, { relayout: false });
+  renderTabs();
 }
 
 /* ----------------------------------------------------------- ui wiring */
 function wireUI() {
   urlInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { go(); urlInput.blur(); }
-    if (e.key === 'Escape') { urlInput.value = wv.getURL(); urlInput.blur(); }
+    if (e.key === 'Escape') { urlInput.value = activeTab()?.url || ''; urlInput.blur(); }
   });
   urlInput.addEventListener('focus', () => urlInput.select());
 
   $('back').onclick = () => nav.back();
   $('forward').onclick = () => nav.forward();
-  $('reload').onclick = () => wv.reload();
+  $('reload').onclick = () => activeWv()?.reload();
 
   // the drawn browser UIs get working back / forward / reload too
   for (const el of all('[data-back]')) el.onclick = () => nav.back();
   for (const el of all('[data-forward]')) el.onclick = () => nav.forward();
-  for (const el of all('[data-reload]')) el.onclick = () => wv.reload();
+  for (const el of all('[data-reload]')) el.onclick = () => activeWv()?.reload();
+
+  $('newTab').onclick = requestNewTab;
 
   $('device').onchange = (e) => {
     const next = deviceById(e.target.value);
@@ -307,7 +459,7 @@ function wireUI() {
     rebuildBrowserSelect();
     layout();
     fitWindow();
-    if (changedUa) wv.reload();
+    if (changedUa) activeWv()?.reload();
   };
 
   $('browser').onchange = (e) => {
@@ -318,14 +470,13 @@ function wireUI() {
     });
     $('ua').value = S.userAgentId;
     layout();
-    if (changedUa) wv.reload();
+    if (changedUa) activeWv()?.reload();
   };
 
   $('ua').onchange = (e) => {
-    set({ userAgentId: e.target.value }, { relayout: false });
-    wv.setAttribute('useragent', uaById(S.userAgentId).value);
+    applyUa({ userAgentId: e.target.value });
     layout();
-    wv.reload();
+    activeWv()?.reload();
   };
 
   $('zoom').onchange = (e) => {
@@ -337,20 +488,28 @@ function wireUI() {
   $('chrome').onclick = toggleChrome;
   $('scheme').onclick = cycleScheme;
   $('shot').onclick = (e) => screenshot({ fullPage: e.altKey });   // ⌥-click = full page
-  $('devtools').onclick = () => window.bridge.toggleDevTools(wv.getWebContentsId());
+  $('devtools').onclick = () => {
+    const el = activeWv();
+    if (el) window.bridge.toggleDevTools(el.getWebContentsId());
+  };
 
   window.addEventListener('resize', () => { if (S.zoom === 'fit') layout(); });
 
   window.bridge.onMenu((action, payload) => {
     switch (action) {
-      case 'reload': wv.reload(); break;
-      case 'hard-reload': wv.reloadIgnoringCache(); break;
+      case 'reload': activeWv()?.reload(); break;
+      case 'hard-reload': activeWv()?.reloadIgnoringCache(); break;
       case 'back': nav.back(); break;
       case 'forward': nav.forward(); break;
       case 'focus-url': urlInput.focus(); break;
-      case 'devtools': window.bridge.toggleDevTools(wv.getWebContentsId()); break;
+      case 'devtools': {
+        const el = activeWv();
+        if (el) window.bridge.toggleDevTools(el.getWebContentsId());
+        break;
+      }
       case 'rotate': rotate(); break;
       case 'toggle-chrome': toggleChrome(); break;
+      case 'toggle-meta': set({ showMeta: !S.showMeta }); break;
       case 'screenshot': screenshot(payload || {}); break;
       case 'zoom': $('zoom').value = String(payload); set({ zoom: payload }); break;
       case 'device':
@@ -358,10 +517,10 @@ function wireUI() {
         $('device').dispatchEvent(new Event('change'));
         break;
       case 'reapply-emulation': applyEmulation(); break;
+      case 'new-tab': requestNewTab(); break;
+      case 'close-tab': if (activeTabId != null) closeTab(activeTabId); break;
     }
   });
-
-  wireWebview();
 }
 
 function rotate() {
@@ -373,7 +532,7 @@ function rotate() {
 function fitWindow() {
   if (S.zoom !== 'fit') return;
   const g = geometry();
-  const chromeH = $('toolbar').offsetHeight + $('devicebar').offsetHeight;
+  const chromeH = $('toolbar').offsetHeight + $('tabbar').offsetHeight + $('devicebar').offsetHeight;
   window.bridge.fitWindow(
     g.w + device.bezel * 2 + 40,
     g.h + device.bezel * 2 + 48 + chromeH,
@@ -399,51 +558,74 @@ function paintSchemeButton() {
 }
 
 /* ------------------------------------------------------------ webview */
-function wireWebview() {
-  wv.addEventListener('dom-ready', () => {
-    booted = true;
-    applyEmulation();
-    sampleTheme();
+function attachWebviewListeners(el, tabId) {
+  el.addEventListener('dom-ready', () => {
+    applyEmulationTo(el);
+    if (tabId === activeTabId) sampleTheme(el);
   });
 
-  wv.addEventListener('did-start-loading', () => $('spinner').hidden = false);
-  wv.addEventListener('did-stop-loading', () => {
+  el.addEventListener('did-start-loading', () => {
+    if (tabId === activeTabId) $('spinner').hidden = false;
+  });
+
+  el.addEventListener('did-stop-loading', () => {
+    if (tabId !== activeTabId) return;
     $('spinner').hidden = true;
     syncNav();
-    sampleTheme();
+    sampleTheme(el);
   });
 
   const onNav = () => {
-    const url = wv.getURL();
-    if (url && url !== 'about:blank' && document.activeElement !== urlInput) {
-      urlInput.value = url;
-    }
-    $('lock').hidden = !/^https:/.test(url);
-
-    let host = '';
-    try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { /* about:blank */ }
-    for (const el of all('[data-host]')) el.textContent = host;
-    for (const el of all('[data-host-or-placeholder]')) {
-      el.textContent = host || 'Search Google or type URL';
-    }
-    for (const el of all('[data-host-or-search]')) {
-      el.textContent = host || 'Search or enter website';
-    }
-
-    syncNav();
-    set({ url }, { relayout: false });
+    const tab = tabById(tabId);
+    if (!tab) return;
+    let url = '';
+    try { url = el.getURL(); } catch { /* guest not ready */ }
+    tab.url = url || tab.url;
+    if (!tab.title) tab.title = hostnameOf(tab.url);   // usable label before the real title arrives
+    if (tabId === activeTabId) updateChromeForActiveTab();
+    if (isPrimary(tabId)) set({ url: tab.url }, { relayout: false });
+    renderTabs();
   };
-  wv.addEventListener('did-navigate', onNav);
-  wv.addEventListener('did-navigate-in-page', onNav);
+  el.addEventListener('did-navigate', onNav);
+  el.addEventListener('did-navigate-in-page', onNav);
 
-  wv.addEventListener('page-title-updated', (e) => {
-    document.title = e.title ? `${e.title} — iPhone Browser` : 'iPhone Browser';
+  el.addEventListener('page-title-updated', (e) => {
+    const tab = tabById(tabId);
+    if (!tab) return;
+    tab.title = e.title || hostnameOf(tab.url) || 'New Tab';
+    renderTabs();
+    if (tabId === activeTabId) {
+      document.title = e.title ? `${e.title} — iPhone Browser` : 'iPhone Browser';
+    }
   });
 
-  wv.addEventListener('did-fail-load', (e) => {
+  el.addEventListener('did-fail-load', (e) => {
     if (e.errorCode === -3 || !e.isMainFrame) return; // aborted
-    toast(`Couldn't load — ${e.errorDescription || e.errorCode}`);
+    if (tabId === activeTabId) toast(`Couldn't load — ${e.errorDescription || e.errorCode}`);
   });
+}
+
+/**
+ * Refresh everything in the app chrome that mirrors the active tab. The
+ * address bar is protected from same-tab navigation events while the user is
+ * mid-typing there — unless forceUrlInput says this call IS the tab switch,
+ * in which case the field must update no matter what has focus.
+ */
+function updateChromeForActiveTab({ forceUrlInput = false } = {}) {
+  const tab = activeTab();
+  const url = tab?.url || '';
+
+  if (forceUrlInput || document.activeElement !== urlInput) {
+    urlInput.value = (url && url !== 'about:blank') ? url : '';
+  }
+  $('lock').hidden = !/^https:/.test(url);
+
+  const host = hostnameOf(url);
+  for (const el of all('[data-host]')) el.textContent = host;
+  for (const el of all('[data-host-or-placeholder]')) el.textContent = host || 'Search Google or type URL';
+  for (const el of all('[data-host-or-search]')) el.textContent = host || 'Search or enter website';
+
+  syncNav();
 }
 
 function syncNav() {
@@ -458,12 +640,13 @@ function syncNav() {
 /* -------------------------------------------------- status bar tinting
    iOS tints its bars from the page. Sample theme-color / background and flip
    the status bar and browser bars to match, like the real thing. */
-async function sampleTheme() {
+async function sampleTheme(el) {
+  if (!el) return;
   let sampled = null;
   try {
-    sampled = await wv.executeJavaScript(`(() => {
+    sampled = await el.executeJavaScript(`(() => {
       const m = document.querySelector('meta[name="theme-color"]');
-      const cs = (el) => el ? getComputedStyle(el).backgroundColor : '';
+      const cs = (node) => node ? getComputedStyle(node).backgroundColor : '';
       return {
         theme: m && m.content,
         body: cs(document.body),
@@ -535,8 +718,10 @@ function tickClock() {
 }
 
 async function screenshot({ fullPage = false } = {}) {
-  const res = await window.bridge.screenshot(wv.getWebContentsId(), {
-    url: wv.getURL(),
+  const el = activeWv();
+  if (!el) return;
+  const res = await window.bridge.screenshot(el.getWebContentsId(), {
+    url: el.getURL(),
     device: device.name,
     fullPage,
   });

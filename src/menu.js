@@ -30,6 +30,9 @@ module.exports = function buildMenu(getWin) {
     {
       label: 'File',
       submenu: [
+        { label: 'New Tab', accelerator: 'Cmd+T', click: to('menu:new-tab') },
+        { label: 'Close Tab', click: to('menu:close-tab') },
+        { type: 'separator' },
         { label: 'Open Location…', accelerator: 'Cmd+L', click: to('menu:focus-url') },
         { type: 'separator' },
         {
@@ -58,6 +61,7 @@ module.exports = function buildMenu(getWin) {
         { type: 'separator' },
         { label: 'Rotate', accelerator: 'Cmd+Ctrl+R', click: to('menu:rotate') },
         { label: 'Show Browser Interface', accelerator: 'Cmd+Shift+B', click: to('menu:toggle-chrome') },
+        { label: 'Show Technical Info', accelerator: 'Cmd+/', click: to('menu:toggle-meta') },
         { type: 'separator' },
         {
           label: 'Zoom',
