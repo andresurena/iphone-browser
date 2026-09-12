@@ -3,3 +3,4 @@ dist/
 build/icon.iconset/
 .DS_Store
 *.provisionprofile
+HANDOFF.md

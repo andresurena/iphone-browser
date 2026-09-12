@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Required: every Mac App Store app runs under the App Sandbox. -->
+  <key>com.apple.security.app-sandbox</key>
+  <true/>
+
+  <!-- Outbound connections. Verified to include loopback, so previewing
+       http://localhost:3000 keeps working under the sandbox. -->
+  <key>com.apple.security.network.client</key>
+  <true/>
+
+  <!-- Saving screenshots. The sandbox has no Desktop access, so the app must
+       write only where the user points a save panel. -->
+  <key>com.apple.security.files.user-selected.read-write</key>
+  <true/>
+
+  <!-- Chromium's JavaScript engine. -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+</dict>
+</plist>
