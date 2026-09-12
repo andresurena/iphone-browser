@@ -115,6 +115,7 @@ the app tells you so, right there.
 |---|---|---|
 | iPhone Duo (Outer) | 466 × 678 | 3 |
 | iPhone Duo (Inner) | 626 × 890 | 3 |
+| iPhone Duo (Split View) | 445 × 626 | 3 |
 | iPhone 17 Pro Max | 440 × 956 | 3 |
 | iPhone 16 Pro Max | 440 × 956 | 3 |
 | iPhone 16 Pro | 402 × 874 | 3 |
@@ -139,6 +140,15 @@ space. So a page there gets an asymmetric safe area — `env(safe-area-inset-rig
 is 62, the top is 0 — which is the opposite of every assumption a phone layout
 usually bakes in. The inner display does the same in landscape and keeps
 ordinary top and bottom bars in portrait.
+
+**Split View** is the third entry, and probably where a lot of layouts will
+actually land. It's a fixed 50/50 with no draggable divider, so 445 × 626 is the
+only size an app gets beside another one — Apple sized it to be roughly the same
+shape as the outer screen. It also flips the thing the other two share: in Split
+View each app puts its controls on its own *outer* edge, so the left-hand app —
+which is what this entry models — has its strip on the **left**. It's drawn
+without hardware buttons, and the edge where the other app begins has no bezel
+and no corner radius, because on the real device the glass just carries on.
 
 Two caveats worth knowing. Safari ships **no fold-detection API** — the CSS
 Viewport Segments spec (`env(viewport-segment-*)`) is Chromium-only, so web

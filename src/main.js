@@ -20,6 +20,12 @@ let win = null;
 // direct-download identity everywhere else.
 const APP_NAME = process.mas ? 'Responsive Phone Browser' : 'iPhone Browser';
 
+// The menu bar takes its name from the bundle (CFBundleName), not from anything
+// here, so a Store build is renamed by the `mas` script in package.json passing
+// -c.productName. Don't reach for app.setName() to do it: userData is derived
+// from the app name, so setting it repoints the whole profile directory and
+// orphans every existing user's settings, cookies and logins.
+
 /* ------------------------------------------------------------------ state */
 
 const statePath = () => path.join(app.getPath('userData'), 'state.json');

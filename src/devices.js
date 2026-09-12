@@ -88,6 +88,35 @@ const DEVICES = [
     controlEdge: 'right',
   },
   {
+    // Half the inner display, which is where a lot of layouts will actually
+    // land: Split View here is a fixed 50/50 with no draggable divider, so
+    // 890 / 2 = 445 is the only width an app ever gets beside another one.
+    // Apple sized it to be "roughly the same size and shape as the outer
+    // screen", so the two are worth checking against each other.
+    //
+    // This models the left-hand app, and that flips the one thing the other
+    // two Duo entries share: in Split View each app puts its controls on its
+    // own *outer* edge, so the left app's strip is on the LEFT while every
+    // other Duo state has it on the right. `foldEdge` marks where the display
+    // simply carries on into the other app — no bezel, no rounded corner.
+    id: 'iphone-duo-split',
+    name: 'iPhone Duo (Split View)',
+    platform: 'ios',
+    width: 445,
+    height: 626,
+    dpr: 3,
+    bezel: 6,
+    screenRadius: 34,
+    front: UNDER_DISPLAY,
+    buttons: 'none',
+    statusBar: 48,
+    homeIndicator: 34,
+    landscapeSafeArea: IOS_LANDSCAPE_SAFE,
+    sideControls: 'always',
+    controlEdge: 'left',
+    foldEdge: 'right',
+  },
+  {
     id: 'iphone-17-pro-max',
     name: 'iPhone 17 Pro Max',
     platform: 'ios',

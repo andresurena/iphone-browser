@@ -26,6 +26,9 @@ const SKINS = {
 
 const MAX_TABS = 4;
 
+/** Which edge a Split View pane's fold ends up on once the device is turned. */
+const FOLD_TURNED = { right: 'bottom', bottom: 'left', left: 'top', top: 'right' };
+
 let DEVICES = [];
 let BROWSERS = [];
 let UAS = [];
@@ -291,11 +294,17 @@ function geometry() {
         ? { ...device.landscapeSafeArea }
         : { top: device.statusBar, right: 0, bottom: device.homeIndicator, left: 0 };
 
+  // A Split View pane's fold turns with the device: stand it on its side and
+  // the edge that met the other app moves from the side to the bottom.
+  const foldEdge = device.foldEdge
+    ? (landscape ? FOLD_TURNED[device.foldEdge] : device.foldEdge)
+    : null;
+
   const front = device.front;
   // the island lies along whichever axis the controls run on
   const turned = sideBars || landscape;
   return {
-    landscape, sideBars, edge, w, h, statusH, statusW, stripW,
+    landscape, sideBars, edge, foldEdge, w, h, statusH, statusW, stripW,
     top, bottom, left, right, floating, safeArea,
     viewW: w - left - right,
     viewH: h - top - bottom,
@@ -317,6 +326,10 @@ function layout() {
   phone.classList.toggle('side-controls', g.sideBars);
   phone.classList.toggle('edge-right', g.sideBars && g.edge === 'right');
   phone.classList.toggle('no-front', device.front.type === 'none');
+  phone.classList.toggle('pane', device.buttons === 'none');
+  for (const e of ['top', 'right', 'bottom', 'left']) {
+    phone.classList.toggle(`fold-${e}`, g.foldEdge === e);
+  }
   // Rotate the outer display and the strip gets short, while the island and the
   // status indicators keep every point they had. The controls are what give
   // way — which is what iOS does too, overflowing toolbar items rather than
@@ -360,8 +373,7 @@ function layout() {
     active.includes(SKINS.chromeIosBot));
 
   // fit-to-window or a fixed percentage
-  const bodyW = g.w + device.bezel * 2;
-  const bodyH = g.h + device.bezel * 2;
+  const { w: bodyW, h: bodyH } = bodySize(g);
   const scale = S.zoom === 'fit'
     ? Math.max(0.2, Math.min(1,
         (stage.clientWidth - 40) / bodyW,
@@ -452,11 +464,39 @@ function applyEmulation() {
   return Promise.all(tabs.map((t) => applyEmulationTo(t.el)));
 }
 
+/* ---------------------------------------------------------- animation
+   A deliberate change — another device, orientation, browser or zoom step —
+   morphs instead of snapping. Dragging the window with zoom on "fit" doesn't:
+   that calls layout() directly, and a transition there would lag the drag.
+
+   The page can't be morphed with the frame. Animating a <webview>'s size means
+   reflowing the guest on every frame, which is exactly the sort of thing that
+   stutters on a heavy page — so it dips out, is resized while nobody can see
+   it, and comes back under the tail of the frame's animation. */
+const MORPH_MS = 280;
+let morphTimer = null;
+let pageTimer = null;
+
+function animateSwitch() {
+  if (!firstLayoutDone) return;   // the first layout has nothing to morph from
+  phone.classList.add('morphing');
+  scaler.classList.add('morphing');
+  webviews.classList.add('dipped');
+
+  clearTimeout(pageTimer);
+  clearTimeout(morphTimer);
+  pageTimer = setTimeout(() => webviews.classList.remove('dipped'), 120);
+  morphTimer = setTimeout(() => {
+    phone.classList.remove('morphing');
+    scaler.classList.remove('morphing');
+  }, MORPH_MS + 40);
+}
+
 /* ----------------------------------------------------------- settings */
 function set(patch, { relayout = true } = {}) {
   S = { ...S, ...patch };
   window.bridge.setState(patch);
-  if (relayout) layout();
+  if (relayout) { animateSwitch(); layout(); }
 }
 
 /**
@@ -544,6 +584,7 @@ function wireUI() {
     device = next;
     const changedUa = applyUa(patch);
     rebuildBrowserSelect();
+    animateSwitch();
     layout();
     fitWindow();
     if (changedUa) activeWv()?.reload();
@@ -556,6 +597,7 @@ function wireUI() {
       userAgentId: browser.userAgentId,
     });
     $('ua').value = S.userAgentId;
+    animateSwitch();
     layout();
     if (changedUa) activeWv()?.reload();
   };
@@ -615,15 +657,25 @@ function rotate() {
   fitWindow();
 }
 
+/**
+ * The phone's outside dimensions. A Split View pane has no bezel where it meets
+ * the other app, so it isn't simply the screen plus two bezels.
+ */
+function bodySize(g) {
+  const foldX = g.foldEdge === 'left' || g.foldEdge === 'right';
+  const foldY = g.foldEdge === 'top' || g.foldEdge === 'bottom';
+  return {
+    w: g.w + device.bezel * (foldX ? 1 : 2),
+    h: g.h + device.bezel * (foldY ? 1 : 2),
+  };
+}
+
 /** Ask the window to grow/shrink around the phone (clamped to the screen). */
 function fitWindow() {
   if (S.zoom !== 'fit') return;
-  const g = geometry();
+  const body = bodySize(geometry());
   const chromeH = $('toolbar').offsetHeight + $('tabbar').offsetHeight + $('devicebar').offsetHeight;
-  window.bridge.fitWindow(
-    g.w + device.bezel * 2 + 40,
-    g.h + device.bezel * 2 + 48 + chromeH,
-  );
+  window.bridge.fitWindow(body.w + 40, body.h + 48 + chromeH);
 }
 
 function toggleChrome() {

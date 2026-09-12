@@ -13,6 +13,10 @@
   --toolbar-h: 52px;
   --tabbar-h: 36px;
   --devicebar-h: 42px;
+
+  /* keep in step with MORPH_MS in shell.js */
+  --morph: .28s;
+  --morph-ease: cubic-bezier(.4, 0, .2, 1);
 }
 
 @media (prefers-color-scheme: light) {
@@ -266,6 +270,28 @@ select {
 }
 #phoneScaler.ready { opacity: 1; }
 
+/* Switching device, orientation, browser or zoom morphs the frame rather than
+   snapping it — see animateSwitch() in shell.js. The transitions live behind a
+   class so that resizing the window, which relays out continuously, stays
+   immediate instead of trailing the drag by a third of a second. */
+#phone.morphing,
+#phone.morphing .frame,
+#phone.morphing .screen,
+#phone.morphing .statusbar,
+#phone.morphing .island,
+#phoneScaler.morphing {
+  transition:
+    width var(--morph) var(--morph-ease),
+    height var(--morph) var(--morph-ease),
+    padding var(--morph) var(--morph-ease),
+    border-radius var(--morph) var(--morph-ease),
+    transform var(--morph) var(--morph-ease);
+}
+
+/* The page can't morph with the frame, so it dips while it's resized. */
+#webviews { transition: opacity .17s ease; }
+#webviews.dipped { opacity: 0; }
+
 #phone {
   /* replaced from the page's theme-colour once something loads */
   --bar-fg: #fff;
@@ -352,6 +378,49 @@ select {
 #phone.pixel .vol-up  { left: auto; right: -3px; top: 222px; height: 96px;
                         border-radius: 0 2px 2px 0; }
 #phone.landscape .btn { display: none; }
+
+/* ------------------------------------------------- Split View pane
+   Half of a continuous display rather than a device, so: no hardware buttons,
+   and on the edge where the other app begins the glass simply carries on —
+   no bezel, no corner radius. That edge turns with the device. */
+#phone.pane .btn { display: none; }
+
+#phone.fold-right .frame {
+  padding-right: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+#phone.fold-right .screen {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+#phone.fold-left .frame {
+  padding-left: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+#phone.fold-left .screen {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+#phone.fold-bottom .frame {
+  padding-bottom: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+#phone.fold-bottom .screen {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+#phone.fold-top .frame {
+  padding-top: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+#phone.fold-top .screen {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
 
 /* --------------------------------------------------------- status bar */
 .statusbar {
