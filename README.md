@@ -113,6 +113,8 @@ the app tells you so, right there.
 
 | Device | Viewport | DPR |
 |---|---|---|
+| iPhone Duo (Outer) | 466 × 678 | 3 |
+| iPhone Duo (Inner) | 626 × 890 | 3 |
 | iPhone 17 Pro Max | 440 × 956 | 3 |
 | iPhone 16 Pro Max | 440 × 956 | 3 |
 | iPhone 16 Pro | 402 × 874 | 3 |
@@ -122,8 +124,29 @@ the app tells you so, right there.
 | Pixel 10 Pro XL | 448 × 997 | 3 |
 | Pixel 10 Pro | 427 × 952 | 3 |
 
-Every viewport matches Chrome DevTools' own device list, so a page measured here
-measures the same in DevTools' device toolbar.
+Every viewport except the Duo's matches Chrome DevTools' own device list, so a
+page measured here measures the same in DevTools' device toolbar. DevTools has
+no iPhone Duo preset yet — these come from Apple's panel sizes.
+
+### iPhone Duo
+
+Folded and unfolded are two entries rather than one device with a toggle,
+because they're as different to a layout as an iPhone and an iPad. The outer
+display is the interesting one: at 466 × 678 it's **wider and shorter than any
+other iPhone**, and iOS moves the status bar, the Dynamic Island and the
+browser's toolbars onto a strip down the trailing edge to protect the vertical
+space. So a page there gets an asymmetric safe area — `env(safe-area-inset-right)`
+is 62, the top is 0 — which is the opposite of every assumption a phone layout
+usually bakes in. The inner display does the same in landscape and keeps
+ordinary top and bottom bars in portrait.
+
+Two caveats worth knowing. Safari ships **no fold-detection API** — the CSS
+Viewport Segments spec (`env(viewport-segment-*)`) is Chromium-only, so web
+content can't tell folded from unfolded beyond the viewport size. And the device
+doesn't reach anyone until 23 October 2026: Apple has published the panel sizes
+and the trailing-edge placement, but not the safe-area insets, the strip width
+or the island's vertical geometry, so the drawn chrome is indicative and the
+numbers behind it are marked as estimates in `src/devices.js`.
 
 ## Browser interfaces
 
@@ -140,6 +163,13 @@ gets — which is the point, because they genuinely differ:
 Pick an Android device and the interface and user agent switch to Chrome for
 Android automatically, and back again for an iPhone. The user agent stays
 overridable on its own if you want an odd combination.
+
+One thing that looks like a bug and isn't: every iOS user agent here still says
+`iPhone OS 18_6`. Apple froze that token at the last iOS 18 release when iOS 26
+shipped, so a real iPhone on iOS 26 reports it too — only `Version/` tracks
+Safari. Chrome does the same on Android, pinning every device to
+`Android 10; K` whatever it really is. Sniffing the OS or the model out of a
+user agent stopped working on purpose, and you can see that here.
 
 Safari and Chrome for Android tint the status bar from the page's
 `theme-color`, like the real ones do. Chrome and Vivaldi on iOS colour it from

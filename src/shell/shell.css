@@ -320,9 +320,9 @@ select {
 
 .frameview {
   position: absolute;
-  left: var(--side-inset);
+  left: var(--left-inset);
   top: var(--top-inset);
-  width: calc(var(--w) - var(--side-inset) * 2);
+  width: calc(var(--w) - var(--left-inset) - var(--right-inset));
   height: calc(var(--h) - var(--top-inset) - var(--bottom-inset));
   background: #fff;
   border: 0;
@@ -452,6 +452,62 @@ select {
   transform: translateY(-50%);
 }
 
+/* iPhone Duo's inner camera lives under the display and only appears while the
+   camera is in use, so there's no cutout to draw and the status bar spreads out
+   into the space an island would otherwise occupy. */
+#phone.no-front .island { display: none; }
+#phone.no-front .statusbar.ios .time {
+  left: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+#phone.no-front .statusbar.ios .indicators {
+  right: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* ------------------------------ iPhone Duo: controls on the vertical axis
+   The status bar, the Dynamic Island and the browser's toolbars all share one
+   strip down a long edge. Keep these rules after the landscape and no-front
+   ones above: a Duo can be in either state at the same time, and the strip
+   always wins. */
+#phone.side-controls .statusbar {
+  inset: 0 auto 0 0;
+  width: var(--strip-w);
+  height: auto;
+}
+#phone.side-controls.edge-right .statusbar { inset: 0 0 0 auto; }
+
+#phone.side-controls .island {
+  left: calc(var(--strip-w) / 2);
+  top: 20px;
+  transform: translateX(-50%);
+}
+#phone.side-controls.edge-right .island {
+  left: auto;
+  right: calc(var(--strip-w) / 2);
+  transform: translateX(50%);
+}
+
+/* the clock sits under the island, the indicators stack at the foot of the
+   strip — the same order as a normal status bar, turned through 90° */
+#phone.side-controls .statusbar.ios .time {
+  left: 50%;
+  top: calc(var(--front-top) + var(--front-h) + 24px);
+  transform: translateX(-50%);
+  font-size: 15px;
+}
+#phone.side-controls .statusbar.ios .indicators {
+  flex-direction: column;
+  left: 50%;
+  right: auto;
+  top: auto;
+  bottom: 28px;
+  transform: translateX(-50%);
+  gap: 9px;
+}
+
 /* ------------------------------------------------- home / gesture bar */
 .homebar {
   position: absolute;
@@ -542,6 +598,82 @@ select {
 .safari-glass .round svg { width: 22px; height: 22px; }
 .safari-glass svg circle[r="1.9"] { fill: currentColor; stroke: none; }
 .safari-glass .round:disabled { opacity: .45; }
+
+/* ------------------------------------- iPhone Duo · vertical control rail
+   Stands in for every horizontal bar at once, so it's drawn for whichever
+   browser is selected rather than one per skin. Padding keeps it clear of the
+   Dynamic Island and clock above and the status indicators below, all of which
+   share this strip. */
+.side-rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--left-inset);
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  /* top: clear the island and the clock beneath it; bottom: clear the status
+     indicators. Both share this strip, so the rail has to yield to them. */
+  padding: calc(var(--front-h) + 72px) 0 100px;
+  pointer-events: none;
+  overflow: hidden;
+}
+#phone.edge-right .side-rail {
+  left: auto;
+  right: 0;
+  width: var(--right-inset);
+}
+.side-rail .rail-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.side-rail .glass {
+  pointer-events: auto;
+  border: 0;
+  padding: 0;
+  color: var(--ui-fg);
+  background: color-mix(in srgb, var(--ui-neutral) 60%, transparent);
+  backdrop-filter: blur(26px) saturate(180%);
+  box-shadow:
+    0 0 0 .5px color-mix(in srgb, var(--ui-fg) 12%, transparent),
+    0 8px 22px rgba(0, 0, 0, .16);
+}
+.side-rail .round {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 22px;
+  display: grid;
+  place-items: center;
+}
+.side-rail svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.side-rail svg circle[r="1.9"] { fill: currentColor; stroke: none; }
+
+/* Too little strip to hold everything: give up the clock and the two most
+   expendable controls instead of clipping the lot. */
+#phone.rail-tight .side-rail {
+  padding-top: calc(var(--front-h) + 26px);
+  padding-bottom: 96px;
+}
+#phone.rail-tight .side-rail [data-reload],
+#phone.rail-tight .side-rail [data-new-tab] { display: none; }
+#phone.rail-tight .statusbar .time { display: none; }
+.side-rail .boxed svg { grid-area: 1 / 1; width: 22px; height: 22px; }
+.side-rail .boxed span {
+  grid-area: 1 / 1;
+  font: 600 11px -apple-system, system-ui, sans-serif;
+}
 
 /* --------------------------------------------------- Chrome · iOS bars */
 .chrome-ios-top {

@@ -21,6 +21,7 @@ const SKINS = {
   vivaldi:       $('uiVivaldi'),
   chromeAndroid: $('uiChrome'),
   chromeNav:     $('uiChromeNav'),
+  sideRail:      $('uiSideRail'),
 };
 
 const MAX_TABS = 4;
@@ -85,9 +86,11 @@ function safeCall(primary, fallback, dflt) {
   device = deviceById(S.deviceId);
   browser = browserById(S.browserId, device.platform);
 
-  // Start the first tab's navigation immediately — before any of the
-  // (synchronous but nonzero) DOM setup below — so the network request
-  // begins as early as possible. Not activated yet: activation needs
+  // Get the first tab going before any of the (synchronous but nonzero) DOM
+  // setup below, so its guest is being created while the rest of this runs.
+  // The real navigation waits on that guest being emulated first — see
+  // createTab — which costs an about:blank round trip but is what makes touch
+  // emulation true on the very first page. Not activated yet: activation needs
   // layout() to have run first, or the webview would briefly render at an
   // unstyled 0×0 size. A fresh install has no saved URL — leave it truly
   // blank and focus the address bar, same as opening a new tab.
@@ -126,15 +129,28 @@ function createTab(url, { activate = true, focus = false } = {}) {
   el.setAttribute('partition', 'persist:ios');
   el.setAttribute('allowpopups', '');
   el.setAttribute('useragent', uaById(S.userAgentId).value);
+  // A <webview> only creates its guest once it has a src, and CDP touch
+  // emulation only reaches documents created after it's switched on — so a tab
+  // that navigates straight to a real page loads it before touch exists, and
+  // `'ontouchstart' in window` comes back false on the one page you're there to
+  // check. Park on about:blank to bring the guest into being, emulate that
+  // throwaway document, and only then navigate for real.
+  el.src = 'about:blank';
   webviews.appendChild(el);
 
   const tab = { id: nextTabId++, el, title: '', url: '' };
+  tab.ready = new Promise((resolve) => {
+    el.addEventListener('dom-ready', function first() {
+      el.removeEventListener('dom-ready', first);
+      applyEmulationTo(el).then(resolve, resolve);
+    });
+  });
   tabs.push(tab);
   attachWebviewListeners(el, tab.id);
   renderTabs();
 
   if (activate) activateTab(tab.id);
-  if (url) go(url, tab.id);
+  if (url) tab.ready.then(() => go(url, tab.id));
   if (focus) { urlInput.focus(); urlInput.select(); }
   return tab;
 }
@@ -218,15 +234,43 @@ function geometry() {
   const w = landscape ? device.height : device.width;
   const h = landscape ? device.width : device.height;
 
-  // iOS hides the status bar in landscape; Android keeps it
-  const statusH = (landscape && device.platform === 'ios') ? 0 : device.statusBar;
+  // iPhone Duo runs the status bar, the Dynamic Island and the browser's
+  // toolbars down one long edge rather than across the top — always on the
+  // outer display, and in landscape on the inner one. They share a single
+  // strip, so the browser's controls cover the status bar instead of stacking
+  // below it the way they do on a normal iPhone. The strip stays on the same
+  // edge when the device is rotated.
+  const sideBars = device.sideControls === 'always'
+    || (device.sideControls === 'landscape' && landscape);
+  // trailing edge, and it stays there in right-to-left languages because it's
+  // aligned to the camera rather than to the reading direction
+  const edge = device.controlEdge || 'right';
 
   const bars = browser.chrome[landscape ? 'landscape' : 'portrait'];
-  const top = S.showChrome ? statusH + bars.top : 0;
-  const bottom = S.showChrome ? bars.bottom : 0;
-  const side = S.showChrome ? (bars.side || 0) : 0;
+
+  // iOS hides the status bar in landscape; Android keeps it
+  const statusH = (sideBars || (landscape && device.platform === 'ios'))
+    ? 0 : device.statusBar;
+  const statusW = sideBars ? device.statusBar : 0;
+
+  // everything collapses onto one strip, so its thickness is the browser's own
+  // bar thickness — not the sum of the bars it replaces
+  const strip = browser.chrome.vertical
+    || Math.max(bars.top, bars.bottom, bars.floating || 0);
+
+  const top = S.showChrome && !sideBars ? statusH + bars.top : 0;
+  const bottom = S.showChrome && !sideBars ? bars.bottom : 0;
+  const flank = S.showChrome ? (sideBars ? strip : (bars.side || 0)) : 0;
+  const left = sideBars ? (edge === 'left' ? flank : 0) : flank;
+  const right = sideBars ? (edge === 'right' ? flank : 0) : flank;
+
   // a floating bar hovers over the page instead of reserving space
-  const floating = S.showChrome ? (bars.floating || 0) : 0;
+  const floating = S.showChrome && !sideBars ? (bars.floating || 0) : 0;
+
+  // the strip as drawn. The browser's controls sit on the status bar rather
+  // than beside it, so one tint has to span the pair — otherwise the wider of
+  // the two leaves a sliver of bare screen down the edge.
+  const stripW = sideBars ? Math.max(statusW, flank) : 0;
 
   // env(safe-area-inset-*) as the page will see it. With the browser UI drawn
   // its bars already cover the unsafe regions, so the page gets zero — same as
@@ -234,17 +278,31 @@ function geometry() {
   // respect the camera cutout and the home indicator.
   const safeArea = S.showChrome
     ? { top: 0, right: 0, bottom: floating, left: 0 }
-    : landscape
-      ? { ...device.landscapeSafeArea }
-      : { top: device.statusBar, right: 0, bottom: device.homeIndicator, left: 0 };
+    : sideBars
+      // asymmetric by design: the control strip is on one edge only, which is
+      // the whole reason to test a layout against this device
+      ? {
+          top: 0,
+          right: edge === 'right' ? statusW : 0,
+          bottom: device.homeIndicator,
+          left: edge === 'left' ? statusW : 0,
+        }
+      : landscape
+        ? { ...device.landscapeSafeArea }
+        : { top: device.statusBar, right: 0, bottom: device.homeIndicator, left: 0 };
 
   const front = device.front;
+  // the island lies along whichever axis the controls run on
+  const turned = sideBars || landscape;
   return {
-    landscape, w, h, statusH, top, bottom, side, floating, safeArea,
-    viewW: w - side * 2,
+    landscape, sideBars, edge, w, h, statusH, statusW, stripW,
+    top, bottom, left, right, floating, safeArea,
+    viewW: w - left - right,
     viewH: h - top - bottom,
-    frontW: landscape ? front.h || front.d : front.w || front.d,
-    frontH: landscape ? front.w || front.d : front.h || front.d,
+    // ?? not ||: an under-display camera is a real 0, and `0 || undefined`
+    // would emit "undefinedpx" and quietly void every calc() that uses it
+    frontW: turned ? front.h ?? front.d ?? 0 : front.w ?? front.d ?? 0,
+    frontH: turned ? front.w ?? front.d ?? 0 : front.h ?? front.d ?? 0,
     frontTop: front.top,
   };
 }
@@ -256,29 +314,42 @@ function layout() {
   phone.classList.toggle('landscape', g.landscape);
   phone.classList.toggle('android', device.platform === 'android');
   phone.classList.toggle('pixel', device.buttons === 'pixel');
+  phone.classList.toggle('side-controls', g.sideBars);
+  phone.classList.toggle('edge-right', g.sideBars && g.edge === 'right');
+  phone.classList.toggle('no-front', device.front.type === 'none');
+  // Rotate the outer display and the strip gets short, while the island and the
+  // status indicators keep every point they had. The controls are what give
+  // way — which is what iOS does too, overflowing toolbar items rather than
+  // shrinking them. 304 is the two control groups at their natural height.
+  phone.classList.toggle('rail-tight',
+    g.sideBars && g.h - (g.frontH + 72) - 100 < 304);
 
   s.setProperty('--w', `${g.w}px`);
   s.setProperty('--h', `${g.h}px`);
   s.setProperty('--bezel', `${device.bezel}px`);
   s.setProperty('--radius', `${device.screenRadius}px`);
   s.setProperty('--status-h', `${g.statusH}px`);
+  s.setProperty('--status-w', `${g.statusW}px`);
+  s.setProperty('--strip-w', `${g.stripW}px`);
   s.setProperty('--front-w', `${g.frontW}px`);
   s.setProperty('--front-h', `${g.frontH}px`);
   s.setProperty('--front-top', `${g.frontTop}px`);
   s.setProperty('--top-inset', `${g.top}px`);
   s.setProperty('--bottom-inset', `${g.bottom}px`);
-  s.setProperty('--side-inset', `${g.side}px`);
+  s.setProperty('--left-inset', `${g.left}px`);
+  s.setProperty('--right-inset', `${g.right}px`);
   s.setProperty('--floating', `${g.floating}px`);
 
   // one status bar per platform
   for (const [platform, el] of Object.entries(STATUS_BARS)) {
-    el.classList.toggle('on', platform === device.platform && g.statusH > 0);
+    el.classList.toggle('on',
+      platform === device.platform && (g.statusH > 0 || g.statusW > 0));
     el.classList.toggle('tinted', S.showChrome);
     el.classList.toggle('neutral', S.showChrome && browser.statusTint === 'neutral');
   }
 
   // one browser skin per browser + orientation
-  const active = activeSkins(g.landscape);
+  const active = activeSkins(g);
   for (const el of Object.values(SKINS)) el.classList.toggle('on', active.includes(el));
 
   // the home indicator sits on whatever is drawn behind it: the page-tinted
@@ -322,8 +393,12 @@ function layout() {
   applyEmulation();
 }
 
-function activeSkins(landscape) {
+function activeSkins({ landscape, sideBars }) {
   if (!S.showChrome) return [];
+  // on iPhone Duo every bar collapses onto the one vertical strip, so the rail
+  // stands in for whichever browser is selected rather than each skin growing a
+  // vertical variant of its own
+  if (sideBars) return [SKINS.sideRail];
   switch (browser.id) {
     case 'chrome-android': return [SKINS.chromeAndroid, SKINS.chromeNav];
     case 'chrome-ios':     return [SKINS.chromeIosTop, SKINS.chromeIosBot];
@@ -592,6 +667,9 @@ function attachWebviewListeners(el, tabId) {
     if (!tab) return;
     let url = '';
     try { url = el.getURL(); } catch { /* guest not ready */ }
+    // about:blank is the parking page every tab starts on, not somewhere the
+    // user went — it must never reach the address bar or the saved session
+    if (url === 'about:blank') return;
     tab.url = url || tab.url;
     if (!tab.title) tab.title = hostnameOf(tab.url);   // usable label before the real title arrives
     if (tabId === activeTabId) updateChromeForActiveTab();

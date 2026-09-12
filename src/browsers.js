@@ -18,6 +18,12 @@
  * `statusTint` says where the status bar takes its colour from: the page's
  * theme-colour ('page', what Safari and Chrome on Android do) or the browser's
  * own toolbar ('neutral', what Chrome and Vivaldi on iOS do).
+ *
+ * `chrome.vertical` is the thickness of the strip the controls collapse into on
+ * iPhone Duo, where the status bar, Dynamic Island, toolbar and tab bar all run
+ * down one long edge together. It replaces `top` and `bottom` rather than being
+ * added to them, so it's a single number, and it's roughly one bar thick — the
+ * items stack along the strip instead of sitting side by side.
  */
 
 const BROWSERS = [
@@ -31,6 +37,7 @@ const BROWSERS = [
       // omnibox on top (44), back/forward/new tab/tabs/menu below (74)
       portrait: { top: 44, bottom: 74 },
       landscape: { top: 44, bottom: 48, side: 59 },
+      vertical: 66,
     },
   },
   {
@@ -43,6 +50,7 @@ const BROWSERS = [
       // iOS 26: a floating glass capsule the page scrolls underneath
       portrait: { top: 0, bottom: 0, floating: 88 },
       landscape: { top: 0, bottom: 0, floating: 68, side: 59 },
+      vertical: 72,
     },
   },
   {
@@ -57,6 +65,7 @@ const BROWSERS = [
       // search field row (60) + toolbar row (52) + home indicator zone (14)
       portrait: { top: 0, bottom: 126 },
       landscape: { top: 52, bottom: 0, side: 59 },
+      vertical: 68,
     },
   },
   {
