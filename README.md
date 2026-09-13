@@ -68,8 +68,15 @@ Measured from the running app on an iPhone 16 Pro Max:
 ## Controls
 
 Top bar: back, forward, reload, address field. Below it, a tab strip.
-Bottom bar: device, browser interface, user agent, zoom, then rotate / browser
-UI / colour scheme / screenshot / Web Inspector.
+Bottom bar: device, display (foldables only), browser, zoom — menus that open
+upward from the bar — then rotate / browser UI / colour scheme / screenshot /
+Settings.
+
+The window opens the full height of your screen, menu bar to Dock, and stays
+the size you leave it; switching device no longer resizes it.
+
+The mouse acts as a finger only while it's over a page. Move off the phone and
+it's an ordinary pointer again, so the app's own controls behave normally.
 
 | | |
 |---|---|
@@ -83,6 +90,7 @@ UI / colour scheme / screenshot / Web Inspector.
 | ⌘0 … ⌘4 | zoom: fit, 100%, 85%, 75%, 50% |
 | ⌘⇧1 … ⌘⇧8 | switch device |
 | ⌘S / ⌘⇧S | screenshot / full-page screenshot to the Desktop |
+| ⌘, | Settings |
 | ⌘⌥I | Web Inspector for the page |
 | ⌘⌥⇧I | inspect the app's own UI |
 
@@ -113,13 +121,27 @@ That's real weight per tab, and 4 is where the app stays fast and stable
 without turning into a general-purpose many-tab browser. Try to open a 5th and
 the app tells you so, right there.
 
+## Settings
+
+The gear at the bottom right, or ⌘,.
+
+- **General** — Start at Login; Start with last simulator used (or always open on
+  a device you pick); Advanced Mode.
+- **Devices** and **Browsers** — choose which appear in the menus. The last one
+  left on can't be switched off.
+- **About**
+
+**Advanced Mode** adds the Profile menu, for sending a different user agent from
+the browser you picked, and the Web Inspector button. Without it the user agent
+simply follows the browser — Safari sends Safari's, Chrome sends Chrome's.
+
 ## Devices
 
 | Device | Viewport | DPR |
 |---|---|---|
-| iPhone Duo (Outer) | 466 × 678 | 3 |
-| iPhone Duo (Inner) | 626 × 890 | 3 |
-| iPhone Duo (Split View) | 445 × 626 | 3 |
+| iPhone Duo — Outer | 466 × 678 | 3 |
+| iPhone Duo — Inner (and partially folded) | 626 × 890 | 3 |
+| iPhone Duo — Split View, each app | 437 × 626 | 3 |
 | iPhone 17 Pro Max | 440 × 956 | 3 |
 | iPhone 16 Pro Max | 440 × 956 | 3 |
 | iPhone 16 Pro | 402 × 874 | 3 |
@@ -135,32 +157,36 @@ no iPhone Duo preset yet — these come from Apple's panel sizes.
 
 ### iPhone Duo
 
-Folded and unfolded are two entries rather than one device with a toggle,
-because they're as different to a layout as an iPhone and an iPad. The outer
-display is the interesting one: at 466 × 678 it's **wider and shorter than any
-other iPhone**, and iOS moves the status bar, the Dynamic Island and the
-browser's toolbars onto a strip down the trailing edge to protect the vertical
-space. So a page there gets an asymmetric safe area — `env(safe-area-inset-right)`
-is 62, the top is 0 — which is the opposite of every assumption a phone layout
-usually bakes in. The inner display does the same in landscape and keeps
-ordinary top and bottom bars in portrait.
+One device, with a **Display** menu beside it: Outer · Inner · Inner, partially
+folded · Split View with your page on the left · Split View with it on the right.
+Rotate works on every one of them.
 
-**Split View** is the third entry, and probably where a lot of layouts will
-actually land. It's a fixed 50/50 with no draggable divider, so 445 × 626 is the
-only size an app gets beside another one — Apple sized it to be roughly the same
-shape as the outer screen. It also flips the thing the other two share: in Split
-View each app puts its controls on its own *outer* edge, so the left-hand app —
-which is what this entry models — has its strip on the **left**. It's drawn
-without hardware buttons, and the edge where the other app begins has no bezel
-and no corner radius, because on the real device the glass just carries on.
+The outer display is the one that catches layouts out. At 466 × 678 it's **wider
+and shorter than any other iPhone**, and iOS runs the status bar, toolbar and tab
+bar down the trailing edge instead of across the top and bottom — so a page there
+gets an asymmetric safe area, the opposite of what phone layouts usually assume.
+The inner display does the same in landscape and keeps ordinary bars in portrait.
 
-Two caveats worth knowing. Safari ships **no fold-detection API** — the CSS
-Viewport Segments spec (`env(viewport-segment-*)`) is Chromium-only, so web
-content can't tell folded from unfolded beyond the viewport size. And the device
-doesn't reach anyone until 23 October 2026: Apple has published the panel sizes
-and the trailing-edge placement, but not the safe-area insets, the strip width
-or the island's vertical geometry, so the drawn chrome is indicative and the
-numbers behind it are marked as estimates in `src/devices.js`.
+What's drawn follows Apple's own diagrams: a round camera in the corner, which
+moves to the bottom-right when you turn the device; the time and a single
+Wi-Fi/signal/battery glyph beneath it; toolbar buttons at the top of the rail with
+grouped items sharing one capsule; the tab bar at the foot. When the rail runs
+short, toolbar items fold into "…" first and the tab bar collapses after, as the
+guidelines describe.
+
+**Split View** draws both apps — two rounded windows either side of a divider —
+and the other half is your second tab, live. Click into it and it becomes the tab
+you're working in; neither page moves. Each app keeps its controls on its own
+outer edge, so the left app's rail is on the left. **Partially folded** shows
+where the crease lands on your layout.
+
+Two caveats. Safari ships **no fold-detection API** — CSS Viewport Segments
+(`env(viewport-segment-*)`) is Chromium-only — so a page can't tell folded from
+flat, which is why the crease is only drawn, never reported. And the device isn't
+out until 23 October 2026: the panel sizes and control placement are Apple's, but
+the insets, rail spacing and divider width are measured off its diagrams, not
+hardware. They're collected in `DUO_RAIL` in `src/shell/duo.js`, to correct once
+it ships.
 
 ## Browser interfaces
 

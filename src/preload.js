@@ -18,6 +18,7 @@ const MENU_CHANNELS = [
   'menu:toggle-meta',
   'menu:new-tab',
   'menu:close-tab',
+  'menu:settings',
 ];
 
 contextBridge.exposeInMainWorld('bridge', {
@@ -27,9 +28,11 @@ contextBridge.exposeInMainWorld('bridge', {
   toggleDevTools: (wcId) => ipcRenderer.invoke('devtools:toggle', wcId),
   screenshot: (wcId, meta) => ipcRenderer.invoke('screenshot', wcId, meta),
   captureTile: (wcId) => ipcRenderer.invoke('capture-tile', wcId),
-  fitWindow: (w, h) => ipcRenderer.invoke('window:fit', w, h),
   reveal: (filePath) => ipcRenderer.invoke('reveal', filePath),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  reportPageRects: (rects) => ipcRenderer.send('pages:rects', rects),
+  getOpenAtLogin: () => ipcRenderer.invoke('login:get'),
+  setOpenAtLogin: (on) => ipcRenderer.invoke('login:set', on),
 
   onMenu: (handler) => {
     for (const channel of MENU_CHANNELS) {

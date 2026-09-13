@@ -60,9 +60,16 @@
         <div class="frame">
           <div class="screen">
 
-            <!-- one <webview> per open tab, created in shell.js; only the
-                 active tab's is visible (see .frameview / .frameview.active) -->
+            <!-- foldables: each pane's window and the Split View divider,
+                 drawn beneath the pages (see duo.js) -->
+            <div id="duoBelow" class="duo-layer"></div>
+
+            <!-- one <webview> per open tab, created in shell.js and placed by
+                 placeWebviews(): usually one on screen, two in Split View -->
             <div id="webviews"></div>
+
+            <!-- foldables: rails, camera, crease and the empty-half prompt -->
+            <div id="duoAbove" class="duo-layer above"></div>
 
             <!-- ------------------------------------------ iOS status bar -->
             <div id="sbIos" class="statusbar ios">
@@ -125,38 +132,6 @@
               <button class="glass round" title="Menu">
                 <svg viewBox="0 0 24 24"><circle cx="5.4" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="18.6" cy="12" r="1.9"/></svg>
               </button>
-            </div>
-
-            <!-- ---------- iPhone Duo · controls on the vertical axis
-                 The outer display is wider and shorter than any other iPhone,
-                 so iOS moves every bar onto a strip down one long edge to
-                 protect the vertical space. Navigation sits at the top of the
-                 strip, the rest below it, with a gap keeping the two groups
-                 distinct — the order Apple's guidelines ask for. -->
-            <div id="uiSideRail" class="ui side-rail">
-              <div class="rail-group">
-                <button class="glass round" data-back title="Back">
-                  <svg viewBox="0 0 24 24"><path d="M14.5 5 8 12l6.5 7"/></svg>
-                </button>
-                <button class="glass round" data-forward title="Forward">
-                  <svg viewBox="0 0 24 24"><path d="M9.5 5 16 12l-6.5 7"/></svg>
-                </button>
-                <button class="glass round" data-reload title="Reload">
-                  <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.35-5.65"/><path d="M20.2 3.4v4.3h-4.3"/></svg>
-                </button>
-              </div>
-              <div class="rail-group">
-                <button class="glass round" data-new-tab title="New tab">
-                  <svg viewBox="0 0 24 24"><path d="M12 5.6v12.8M5.6 12h12.8"/></svg>
-                </button>
-                <button class="glass round boxed" title="Tabs">
-                  <svg viewBox="0 0 24 24"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="4"/></svg>
-                  <span data-tab-count>1</span>
-                </button>
-                <button class="glass round" title="Menu">
-                  <svg viewBox="0 0 24 24"><circle cx="5.4" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="18.6" cy="12" r="1.9"/></svg>
-                </button>
-              </div>
             </div>
 
             <!-- ------------------------------------- Chrome · iOS top bar -->
@@ -278,17 +253,14 @@
   </main>
 
   <!-- ----------------------------------------------------- device bar -->
+  <!-- ----------------------------------------------------- device bar
+       Menus open upward from here — see popover.js -->
   <footer id="devicebar">
-    <select id="device" title="Device"></select>
-    <select id="browser" title="Browser interface"></select>
-    <select id="ua" title="User agent"></select>
-    <select id="zoom" title="Zoom">
-      <option value="fit">Fit</option>
-      <option value="1">100%</option>
-      <option value="0.85">85%</option>
-      <option value="0.75">75%</option>
-      <option value="0.5">50%</option>
-    </select>
+    <button id="deviceMenu" class="menu-btn" title="Device"><span class="label"></span><svg class="chev" viewBox="0 0 10 10"><path d="M2.5 6.2 5 3.7l2.5 2.5"/></svg></button>
+    <button id="displayMenu" class="menu-btn" title="Display"><span class="label"></span><svg class="chev" viewBox="0 0 10 10"><path d="M2.5 6.2 5 3.7l2.5 2.5"/></svg></button>
+    <button id="browserMenu" class="menu-btn" title="Browser"><span class="label"></span><svg class="chev" viewBox="0 0 10 10"><path d="M2.5 6.2 5 3.7l2.5 2.5"/></svg></button>
+    <button id="uaMenu" class="menu-btn advanced-only" title="Profile — the user agent sent to the page"><span class="label"></span><svg class="chev" viewBox="0 0 10 10"><path d="M2.5 6.2 5 3.7l2.5 2.5"/></svg></button>
+    <button id="zoomMenu" class="menu-btn" title="Zoom"><span class="label"></span><svg class="chev" viewBox="0 0 10 10"><path d="M2.5 6.2 5 3.7l2.5 2.5"/></svg></button>
 
     <div class="spring"></div>
 
@@ -317,16 +289,90 @@
         <path d="M5.6 4l1-1.6h2.8l1 1.6"/>
       </svg>
     </button>
-    <button id="devtools" class="icon" title="Web Inspector (⌘⌥I)">
+    <button id="devtools" class="icon advanced-only" title="Web Inspector (⌘⌥I)">
       <svg viewBox="0 0 16 16">
         <path d="M6 4.5 2.5 8 6 11.5"/>
         <path d="M10 4.5 13.5 8 10 11.5"/>
+      </svg>
+    </button>
+    <button id="settingsBtn" class="icon" title="Settings (⌘,)">
+      <svg viewBox="0 0 16 16">
+        <circle cx="8" cy="8" r="2.1"/>
+        <path d="M8 1.6v1.7M8 12.7v1.7M14.4 8h-1.7M3.3 8H1.6M12.5 3.5l-1.2 1.2M4.7 11.3l-1.2 1.2M12.5 12.5l-1.2-1.2M4.7 4.7 3.5 3.5"/>
+        <circle cx="8" cy="8" r="4.6"/>
       </svg>
     </button>
   </footer>
 
   <div id="toast" class="toast" hidden></div>
 
+  <!-- -------------------------------------------------------- settings -->
+  <div id="settings" class="settings" hidden>
+    <div class="settings-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <header class="settings-head">
+        <h2 id="settingsTitle">Settings</h2>
+        <button id="settingsClose" class="icon" title="Close (Esc)">
+          <svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+        </button>
+      </header>
+      <nav class="settings-tabs" role="tablist" aria-label="Settings sections">
+        <button role="tab" data-pane="general" aria-selected="true">General</button>
+        <button role="tab" data-pane="devices" aria-selected="false">Devices</button>
+        <button role="tab" data-pane="browsers" aria-selected="false">Browsers</button>
+        <button role="tab" data-pane="about" aria-selected="false">About</button>
+      </nav>
+
+      <section class="settings-pane" data-pane="general" role="tabpanel">
+        <label class="settings-row">
+          <span class="row-text">
+            <span class="row-title">Start at Login</span>
+            <span class="row-hint">Opens automatically when you log in to your Mac.</span>
+          </span>
+          <input id="setLogin" type="checkbox" class="switch" />
+        </label>
+        <label class="settings-row">
+          <span class="row-text">
+            <span class="row-title">Start with last simulator used</span>
+            <span class="row-hint">Reopens on the device, display and browser you had last.</span>
+          </span>
+          <input id="setRestore" type="checkbox" class="switch" />
+        </label>
+        <div id="startDeviceRow" class="settings-row sub">
+          <span class="row-text"><span class="row-title">Always start with</span></span>
+          <button id="startDeviceMenu" class="menu-btn"><span class="label"></span><svg class="chev" viewBox="0 0 10 10"><path d="M2.5 6.2 5 3.7l2.5 2.5"/></svg></button>
+        </div>
+        <label class="settings-row">
+          <span class="row-text">
+            <span class="row-title">Advanced Mode</span>
+            <span class="row-hint">Shows the Profile menu, for sending a different user agent from the browser you picked, and the Web Inspector button.</span>
+          </span>
+          <input id="setAdvanced" type="checkbox" class="switch" />
+        </label>
+      </section>
+
+      <section class="settings-pane" data-pane="devices" role="tabpanel" hidden>
+        <p class="settings-note">Choose which devices appear in the device menu.</p>
+        <div id="deviceToggles"></div>
+      </section>
+
+      <section class="settings-pane" data-pane="browsers" role="tabpanel" hidden>
+        <p class="settings-note">Choose which browsers appear in the browser menu.</p>
+        <div id="browserToggles"></div>
+      </section>
+
+      <section class="settings-pane about" data-pane="about" role="tabpanel" hidden>
+        <h3 data-app-name>iPhone Browser</h3>
+        <p class="about-version">Version <span id="aboutVersion"></span></p>
+        <p class="about-by">Developed by Andres Urena</p>
+        <p class="about-bio">I'm curious about how things work — that's taken me through three companies as a Founder, and now building inside organisations. The pattern's always the same: complexity goes in, something simple and working comes out.</p>
+        <button id="aboutLink" class="about-link">andresurena.com</button>
+      </section>
+    </div>
+  </div>
+
+  <script src="popover.js"></script>
+  <script src="duo.js"></script>
+  <script src="settings.js"></script>
   <script src="shell.js"></script>
 </body>
 </html>

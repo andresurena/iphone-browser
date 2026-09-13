@@ -21,20 +21,29 @@ const SKINS = {
   vivaldi:       $('uiVivaldi'),
   chromeAndroid: $('uiChrome'),
   chromeNav:     $('uiChromeNav'),
-  sideRail:      $('uiSideRail'),
 };
 
 const MAX_TABS = 4;
 
-/** Which edge a Split View pane's fold ends up on once the device is turned. */
-const FOLD_TURNED = { right: 'bottom', bottom: 'left', left: 'top', top: 'right' };
+const ZOOMS = [
+  { value: 'fit', label: 'Fit' },
+  { value: 1, label: '100%' },
+  { value: 0.85, label: '85%' },
+  { value: 0.75, label: '75%' },
+  { value: 0.5, label: '50%' },
+];
+
+// Devices that were three separate entries before iPhone Duo got a Display menu
+const LEGACY_DUO = { 'iphone-duo-outer': 'outer', 'iphone-duo-inner': 'inner', 'iphone-duo-split': 'split-leading' };
 
 let DEVICES = [];
 let BROWSERS = [];
 let UAS = [];
 let S = {};
 let APP_NAME = 'iPhone Browser';
-let device = null;
+let APP_VERSION = '';
+let deviceEntry = null;   // the catalogue entry picked in the device menu
+let device = null;        // that entry with its chosen display applied (see resolveDevice)
 let browser = null;
 let firstLayoutDone = false;
 
@@ -42,6 +51,7 @@ let firstLayoutDone = false;
    Each tab owns its own <webview>. All tabs share one simulated device —
    switching tabs only changes which page is shown, not the phone/browser
    being emulated (device, orientation, colour scheme, zoom stay global).
+   Split View is the one time two are on screen at once (see duo.js).
 
    Capped at 4: each tab is a full out-of-process Chromium renderer with its
    own live CDP session driving continuous device emulation. That's real
@@ -52,6 +62,7 @@ let activeTabId = null;
 let nextTabId = 1;
 
 const tabById   = (id) => tabs.find((t) => t.id === id);
+const tabOf     = (el) => tabs.find((t) => t.el === el);
 const activeTab = () => tabById(activeTabId);
 const activeWv  = () => activeTab()?.el || null;
 const isPrimary = (id) => tabs[0]?.id === id;   // the one whose URL survives a relaunch
@@ -62,14 +73,26 @@ const browsersFor = (platform) => BROWSERS.filter((b) => b.platform === platform
 const browserById = (id, platform) =>
   BROWSERS.find((b) => b.id === id && b.platform === platform) || browsersFor(platform)[0];
 
+// what Settings has switched on
+const isDeviceOn = (id) => !(S.disabledDevices || []).includes(id);
+const isBrowserOn = (id) => !(S.disabledBrowsers || []).includes(id);
+const enabledDevices = () => {
+  const on = DEVICES.filter((d) => isDeviceOn(d.id));
+  return on.length ? on : DEVICES;
+};
+const enabledBrowsersFor = (platform) => {
+  const on = browsersFor(platform).filter((b) => isBrowserOn(b.id));
+  return on.length ? on : browsersFor(platform);
+};
+
 /* ---------------------------------------------------------- webview api
-   Electron keeps moving history APIs around; take whichever exists. Both
-   resolve against whichever tab is active. */
+   Electron keeps moving history APIs around; take whichever exists. Each
+   takes the webview to act on — in Split View that isn't always the active one. */
 const nav = {
-  canBack:    () => safeCall(() => activeWv().navigationHistory.canGoBack(), () => activeWv().canGoBack(), false),
-  canForward: () => safeCall(() => activeWv().navigationHistory.canGoForward(), () => activeWv().canGoForward(), false),
-  back:       () => safeCall(() => activeWv().navigationHistory.goBack(), () => activeWv().goBack()),
-  forward:    () => safeCall(() => activeWv().navigationHistory.goForward(), () => activeWv().goForward()),
+  canBack:    (el) => safeCall(() => el.navigationHistory.canGoBack(), () => el.canGoBack(), false),
+  canForward: (el) => safeCall(() => el.navigationHistory.canGoForward(), () => el.canGoForward(), false),
+  back:       (el) => safeCall(() => el.navigationHistory.goBack(), () => el.goBack()),
+  forward:    (el) => safeCall(() => el.navigationHistory.goForward(), () => el.goForward()),
 };
 
 function safeCall(primary, fallback, dflt) {
@@ -85,9 +108,10 @@ function safeCall(primary, fallback, dflt) {
   UAS = data.userAgents;
   S = data.state;
   APP_NAME = data.appName || APP_NAME;
+  APP_VERSION = data.version || '';
 
-  device = deviceById(S.deviceId);
-  browser = browserById(S.browserId, device.platform);
+  settleStartingState();
+  document.body.classList.toggle('advanced', S.advanced);
 
   // Get the first tab going before any of the (synchronous but nonzero) DOM
   // setup below, so its guest is being created while the rest of this runs.
@@ -99,30 +123,50 @@ function safeCall(primary, fallback, dflt) {
   // blank and focus the address bar, same as opening a new tab.
   createTab(S.url || null, { activate: false, focus: !S.url });
 
-  $('device').innerHTML = DEVICES
-    .map((d) => `<option value="${d.id}">${d.name}</option>`).join('');
-  $('ua').innerHTML = UAS
-    .map((u) => `<option value="${u.id}">${u.name}</option>`).join('');
-
-  $('device').value = device.id;
-  $('zoom').value = String(S.zoom);
   urlInput.value = S.url || '';
   $('chrome').classList.toggle('on', S.showChrome);
   paintSchemeButton();
-  rebuildBrowserSelect();
 
   layout();
   activateTab(tabs[0].id);
   wireUI();
+  wireSettings();
   tickClock();
   setInterval(tickClock, 10_000);
 })();
 
-function rebuildBrowserSelect() {
-  $('browser').innerHTML = browsersFor(device.platform)
-    .map((b) => `<option value="${b.id}">${b.name}</option>`).join('');
-  $('browser').value = browser.id;
-  $('ua').value = uaById(S.userAgentId).id;
+/**
+ * Decide what to open on, before anything is drawn: carry old saved state
+ * forward, honour "Start with last simulator used", and never land on a device
+ * or browser that Settings has switched off, or on a user agent the (hidden)
+ * Profile menu couldn't show you.
+ */
+function settleStartingState() {
+  const patch = {};
+
+  if (LEGACY_DUO[S.deviceId]) {
+    patch.displays = { ...S.displays, 'iphone-duo': LEGACY_DUO[S.deviceId] };
+    patch.deviceId = 'iphone-duo';
+  }
+  if (!S.restoreLast) {
+    patch.deviceId = S.startDeviceId;
+    patch.orientation = 'portrait';
+    patch.displays = {};
+  }
+  Object.assign(S, patch);
+
+  deviceEntry = deviceById(S.deviceId);
+  if (!isDeviceOn(deviceEntry.id)) deviceEntry = enabledDevices()[0];
+  patch.deviceId = deviceEntry.id;
+
+  browser = browserById(S.browserId, deviceEntry.platform);
+  if (!S.restoreLast || !isBrowserOn(browser.id)) browser = enabledBrowsersFor(deviceEntry.platform)[0];
+  patch.browserId = browser.id;
+  if (!S.advanced || !S.restoreLast) patch.userAgentId = browser.userAgentId;
+
+  S = { ...S, ...patch };
+  window.bridge.setState(patch);
+  device = resolveDevice(deviceEntry);
 }
 
 /* --------------------------------------------------------------- tabs */
@@ -145,6 +189,7 @@ function createTab(url, { activate = true, focus = false } = {}) {
   tab.ready = new Promise((resolve) => {
     el.addEventListener('dom-ready', function first() {
       el.removeEventListener('dom-ready', first);
+      reportPageRects();   // its webContents id only exists from here
       applyEmulationTo(el).then(resolve, resolve);
     });
   });
@@ -153,6 +198,7 @@ function createTab(url, { activate = true, focus = false } = {}) {
   renderTabs();
 
   if (activate) activateTab(tab.id);
+  else if (firstLayoutDone) layout();   // Split View may want it in the other half
   if (url) tab.ready.then(() => go(url, tab.id));
   if (focus) { urlInput.focus(); urlInput.select(); }
   return tab;
@@ -169,15 +215,15 @@ function requestNewTab() {
 function activateTab(id) {
   const tab = tabById(id);
   if (!tab) return;
+  followSplitFocus(id);
   activeTabId = id;
 
-  for (const t of tabs) t.el.classList.toggle('active', t.id === id);
   renderTabs();
   // an explicit tab switch always wins, even if the address bar happens to
   // still hold focus (e.g. right after opening a new tab) — showing the
   // previous tab's URL for the page now on screen would be a real bug.
   updateChromeForActiveTab({ forceUrlInput: true });
-  applyEmulationTo(tab.el);
+  layout();
   sampleTheme(tab.el);
 }
 
@@ -194,16 +240,19 @@ function closeTab(id) {
     activateTab(next.id);
   } else {
     renderTabs();
+    layout();
   }
 }
 
 function renderTabs() {
   tabsEl.innerHTML = '';
   const onlyTab = tabs.length === 1;
+  const otherId = otherTabId();
 
   for (const t of tabs) {
     const btn = document.createElement('button');
-    btn.className = 'tab' + (t.id === activeTabId ? ' active' : '') + (onlyTab ? ' only-tab' : '');
+    btn.className = 'tab' + (t.id === activeTabId ? ' active' : '') + (onlyTab ? ' only-tab' : '')
+      + (t.id === otherId ? ' beside' : '');
     btn.title = t.title || t.url || 'New Tab';
     btn.onclick = () => { if (t.id !== activeTabId) activateTab(t.id); };
 
@@ -226,54 +275,66 @@ function renderTabs() {
     ? `Limited to ${MAX_TABS} tabs for speed and stability`
     : `New Tab (⌘T) — up to ${MAX_TABS} at a time`;
 
-  // the drawn browser skins (Chrome's tab-count pill) mirror the real count —
-  // these are illustrations of a real phone's UI, not a separate concept
+  renderTabCounts();
+}
+
+// the drawn browser skins (Chrome's tab-count pill) mirror the real count —
+// these are illustrations of a real phone's UI, not a separate concept
+function renderTabCounts() {
   for (const el of all('[data-tab-count]')) el.textContent = String(tabs.length);
 }
 
-/* ------------------------------------------------------------- layout */
+/* ------------------------------------------------------------- layout
+   geometry() describes the screen as one or more panes — rectangles a page is
+   shown in, each with its own insets and safe area. Almost always one; Split
+   View on a foldable is two. Devices with ordinary top and bottom bars go
+   through barGeometry(), foldable displays with a vertical rail through
+   duoPanes() in duo.js. */
 function geometry() {
   const landscape = S.orientation === 'landscape';
   const w = landscape ? device.height : device.width;
   const h = landscape ? device.width : device.height;
 
-  // iPhone Duo runs the status bar, the Dynamic Island and the browser's
-  // toolbars down one long edge rather than across the top — always on the
-  // outer display, and in landscape on the inner one. They share a single
-  // strip, so the browser's controls cover the status bar instead of stacking
-  // below it the way they do on a normal iPhone. The strip stays on the same
-  // edge when the device is rotated.
-  const sideBars = device.sideControls === 'always'
-    || (device.sideControls === 'landscape' && landscape);
-  // trailing edge, and it stays there in right-to-left languages because it's
-  // aligned to the camera rather than to the reading direction
-  const edge = device.controlEdge || 'right';
+  const shared = {
+    landscape,
+    w,
+    h,
+    corners: screenCorners(landscape),
+    hinge: hingeEdge(landscape),
+    crease: creaseOf(w, h, landscape),
+    camera: null,
+  };
 
+  const g = usesRail(landscape)
+    ? {
+        ...shared,
+        rail: true,
+        split: Boolean(device.split),
+        camera: cameraSpot(w, h, landscape),
+        statusH: 0,
+        top: 0, bottom: 0, left: 0, right: 0, floating: 0,
+        frontW: 0, frontH: 0, frontTop: 0,
+        ...duoPanes(w, h, landscape),
+      }
+    : barGeometry(shared);
+
+  const page = g.panes.find((p) => p.slot === 'page');
+  return { ...g, page, viewW: page.viewW, viewH: page.viewH, safeArea: page.safeArea };
+}
+
+/** A screen with the browser's bars across the top and bottom — every phone. */
+function barGeometry(shared) {
+  const { landscape, w, h } = shared;
   const bars = browser.chrome[landscape ? 'landscape' : 'portrait'];
 
   // iOS hides the status bar in landscape; Android keeps it
-  const statusH = (sideBars || (landscape && device.platform === 'ios'))
-    ? 0 : device.statusBar;
-  const statusW = sideBars ? device.statusBar : 0;
+  const statusH = (landscape && device.platform === 'ios') ? 0 : device.statusBar;
 
-  // everything collapses onto one strip, so its thickness is the browser's own
-  // bar thickness — not the sum of the bars it replaces
-  const strip = browser.chrome.vertical
-    || Math.max(bars.top, bars.bottom, bars.floating || 0);
-
-  const top = S.showChrome && !sideBars ? statusH + bars.top : 0;
-  const bottom = S.showChrome && !sideBars ? bars.bottom : 0;
-  const flank = S.showChrome ? (sideBars ? strip : (bars.side || 0)) : 0;
-  const left = sideBars ? (edge === 'left' ? flank : 0) : flank;
-  const right = sideBars ? (edge === 'right' ? flank : 0) : flank;
-
+  const top = S.showChrome ? statusH + bars.top : 0;
+  const bottom = S.showChrome ? bars.bottom : 0;
+  const side = S.showChrome ? (bars.side || 0) : 0;
   // a floating bar hovers over the page instead of reserving space
-  const floating = S.showChrome && !sideBars ? (bars.floating || 0) : 0;
-
-  // the strip as drawn. The browser's controls sit on the status bar rather
-  // than beside it, so one tint has to span the pair — otherwise the wider of
-  // the two leaves a sliver of bare screen down the edge.
-  const stripW = sideBars ? Math.max(statusW, flank) : 0;
+  const floating = S.showChrome ? (bars.floating || 0) : 0;
 
   // env(safe-area-inset-*) as the page will see it. With the browser UI drawn
   // its bars already cover the unsafe regions, so the page gets zero — same as
@@ -281,38 +342,29 @@ function geometry() {
   // respect the camera cutout and the home indicator.
   const safeArea = S.showChrome
     ? { top: 0, right: 0, bottom: floating, left: 0 }
-    : sideBars
-      // asymmetric by design: the control strip is on one edge only, which is
-      // the whole reason to test a layout against this device
-      ? {
-          top: 0,
-          right: edge === 'right' ? statusW : 0,
-          bottom: device.homeIndicator,
-          left: edge === 'left' ? statusW : 0,
-        }
-      : landscape
-        ? { ...device.landscapeSafeArea }
-        : { top: device.statusBar, right: 0, bottom: device.homeIndicator, left: 0 };
-
-  // A Split View pane's fold turns with the device: stand it on its side and
-  // the edge that met the other app moves from the side to the bottom.
-  const foldEdge = device.foldEdge
-    ? (landscape ? FOLD_TURNED[device.foldEdge] : device.foldEdge)
-    : null;
+    : landscape
+      ? { ...device.landscapeSafeArea }
+      : { top: device.statusBar, right: 0, bottom: device.homeIndicator, left: 0 };
 
   const front = device.front;
-  // the island lies along whichever axis the controls run on
-  const turned = sideBars || landscape;
   return {
-    landscape, sideBars, edge, foldEdge, w, h, statusH, statusW, stripW,
-    top, bottom, left, right, floating, safeArea,
-    viewW: w - left - right,
-    viewH: h - top - bottom,
+    ...shared,
+    rail: false,
+    split: false,
+    statusH, top, bottom, left: side, right: side, floating,
     // ?? not ||: an under-display camera is a real 0, and `0 || undefined`
     // would emit "undefinedpx" and quietly void every calc() that uses it
-    frontW: turned ? front.h ?? front.d ?? 0 : front.w ?? front.d ?? 0,
-    frontH: turned ? front.w ?? front.d ?? 0 : front.h ?? front.d ?? 0,
+    frontW: landscape ? front.h ?? front.d ?? 0 : front.w ?? front.d ?? 0,
+    frontH: landscape ? front.w ?? front.d ?? 0 : front.h ?? front.d ?? 0,
     frontTop: front.top,
+    divider: null,
+    panes: [{
+      slot: 'page', x: 0, y: 0, w, h, radii: null,
+      top, bottom, left: side, right: side,
+      viewW: w - side * 2,
+      viewH: h - top - bottom,
+      safeArea,
+    }],
   };
 }
 
@@ -323,27 +375,18 @@ function layout() {
   phone.classList.toggle('landscape', g.landscape);
   phone.classList.toggle('android', device.platform === 'android');
   phone.classList.toggle('pixel', device.buttons === 'pixel');
-  phone.classList.toggle('side-controls', g.sideBars);
-  phone.classList.toggle('edge-right', g.sideBars && g.edge === 'right');
+  phone.classList.toggle('no-buttons', device.buttons === 'none');
   phone.classList.toggle('no-front', device.front.type === 'none');
-  phone.classList.toggle('pane', device.buttons === 'none');
-  for (const e of ['top', 'right', 'bottom', 'left']) {
-    phone.classList.toggle(`fold-${e}`, g.foldEdge === e);
-  }
-  // Rotate the outer display and the strip gets short, while the island and the
-  // status indicators keep every point they had. The controls are what give
-  // way — which is what iOS does too, overflowing toolbar items rather than
-  // shrinking them. 304 is the two control groups at their natural height.
-  phone.classList.toggle('rail-tight',
-    g.sideBars && g.h - (g.frontH + 72) - 100 < 304);
+  phone.classList.toggle('rail', g.rail);
+  phone.classList.toggle('split', g.split);
+  phone.classList.toggle('hinge-left', g.hinge === 'left');
+  phone.classList.toggle('hinge-top', g.hinge === 'top');
 
   s.setProperty('--w', `${g.w}px`);
   s.setProperty('--h', `${g.h}px`);
   s.setProperty('--bezel', `${device.bezel}px`);
-  s.setProperty('--radius', `${device.screenRadius}px`);
+  ['tl', 'tr', 'br', 'bl'].forEach((corner, i) => s.setProperty(`--r-${corner}`, `${g.corners[i]}px`));
   s.setProperty('--status-h', `${g.statusH}px`);
-  s.setProperty('--status-w', `${g.statusW}px`);
-  s.setProperty('--strip-w', `${g.stripW}px`);
   s.setProperty('--front-w', `${g.frontW}px`);
   s.setProperty('--front-h', `${g.frontH}px`);
   s.setProperty('--front-top', `${g.frontTop}px`);
@@ -353,10 +396,9 @@ function layout() {
   s.setProperty('--right-inset', `${g.right}px`);
   s.setProperty('--floating', `${g.floating}px`);
 
-  // one status bar per platform
+  // one status bar per platform — a rail carries its own, so they stand down
   for (const [platform, el] of Object.entries(STATUS_BARS)) {
-    el.classList.toggle('on',
-      platform === device.platform && (g.statusH > 0 || g.statusW > 0));
+    el.classList.toggle('on', platform === device.platform && g.statusH > 0);
     el.classList.toggle('tinted', S.showChrome);
     el.classList.toggle('neutral', S.showChrome && browser.statusTint === 'neutral');
   }
@@ -372,8 +414,12 @@ function layout() {
     active.includes(SKINS.chromeNav) ||
     active.includes(SKINS.chromeIosBot));
 
+  placeWebviews(g);
+  renderDuo(g);
+
   // fit-to-window or a fixed percentage
-  const { w: bodyW, h: bodyH } = bodySize(g);
+  const bodyW = g.w + device.bezel * 2;
+  const bodyH = g.h + device.bezel * 2;
   const scale = S.zoom === 'fit'
     ? Math.max(0.2, Math.min(1,
         (stage.clientWidth - 40) / bodyW,
@@ -385,6 +431,7 @@ function layout() {
   scaler.style.height = `${Math.round(bodyH * scale)}px`;
 
   paintChrome();
+  paintMenus();
 
   meta.hidden = !S.showMeta;
   // only name the user agent when it's been overridden away from the browser's
@@ -403,14 +450,65 @@ function layout() {
   }
 
   applyEmulation();
+  reportPageRects();
 }
 
-function activeSkins({ landscape, sideBars }) {
-  if (!S.showChrome) return [];
-  // on iPhone Duo every bar collapses onto the one vertical strip, so the rail
-  // stands in for whichever browser is selected rather than each skin growing a
-  // vertical variant of its own
-  if (sideBars) return [SKINS.sideRail];
+/**
+ * Tell the main process where the pages are on screen, so touch emulation is on
+ * only while the pointer is over one (see syncTouchToPointer in main.js). Nothing
+ * counts as a page while Settings or a menu is drawn over it.
+ */
+function reportPageRects() {
+  const covered = !$('settings').hidden || Boolean(openPopover);
+  const rects = covered ? [] : tabs
+    .filter((t) => t.el.classList.contains('shown'))
+    .map((t) => {
+      let wcId;
+      try { wcId = t.el.getWebContentsId(); } catch { return null; }   // guest not created yet
+      const r = t.el.getBoundingClientRect();
+      return { wcId, x: r.left, y: r.top, width: r.width, height: r.height };
+    })
+    .filter(Boolean);
+  window.bridge.reportPageRects(rects);
+}
+
+/**
+ * Put each on-screen tab's webview into its pane: the active tab in the "page"
+ * pane, and in Split View the other open tab beside it. Everything else hides.
+ */
+function placeWebviews(g) {
+  const otherId = g.split ? otherTabId() : null;
+  for (const t of tabs) {
+    const pane = t.id === activeTabId
+      ? g.panes.find((p) => p.slot === 'page')
+      : (t.id === otherId ? g.panes.find((p) => p.slot === 'other') : null);
+
+    t.el.classList.toggle('active', t.id === activeTabId);
+    t.el.classList.toggle('shown', Boolean(pane));
+    if (!pane) continue;
+
+    Object.assign(t.el.style, {
+      left: `${pane.x + pane.left}px`,
+      top: `${pane.y + pane.top}px`,
+      width: `${pane.viewW}px`,
+      height: `${pane.viewH}px`,
+      borderRadius: contentRadii(pane),
+    });
+  }
+}
+
+/** A Split View pane's rounded corners, minus the ones its rail covers. */
+function contentRadii(pane) {
+  if (!pane.radii) return '';
+  const r = [...pane.radii];
+  if (pane.left) { r[0] = 0; r[3] = 0; }
+  if (pane.right) { r[1] = 0; r[2] = 0; }
+  return r.map((v) => `${v}px`).join(' ');
+}
+
+function activeSkins({ landscape, rail }) {
+  // a foldable's rail stands in for every browser's bars (drawn in duo.js)
+  if (!S.showChrome || rail) return [];
   switch (browser.id) {
     case 'chrome-android': return [SKINS.chromeAndroid, SKINS.chromeNav];
     case 'chrome-ios':     return [SKINS.chromeIosTop, SKINS.chromeIosBot];
@@ -426,15 +524,17 @@ function activeSkins({ landscape, sideBars }) {
    succession must not land out of order, or the older payload wins. Every
    open tab is kept emulated to the current device/browser/orientation, not
    just the visible one, so switching back to a background tab never shows a
-   stale viewport. */
+   stale viewport. Each tab gets the size of the pane it's in — the same for
+   every tab, except in Split View. */
 const emulationChains = new WeakMap();
 
-function currentEmulationPayload() {
+function currentEmulationPayload(el) {
   const g = geometry();
+  const pane = paneForTab(tabOf(el)?.id ?? activeTabId, g);
   const ua = uaById(S.userAgentId);
   return {
-    viewWidth: g.viewW,
-    viewHeight: g.viewH,
+    viewWidth: pane.viewW,
+    viewHeight: pane.viewH,
     screenWidth: g.w,
     screenHeight: g.h,
     dpr: device.dpr,
@@ -442,7 +542,7 @@ function currentEmulationPayload() {
     platform: ua.platform,
     colorScheme: S.colorScheme,
     landscape: g.landscape,
-    safeArea: g.safeArea,
+    safeArea: pane.safeArea,
   };
 }
 
@@ -450,7 +550,7 @@ function applyEmulationTo(el) {
   let wcId;
   try { wcId = el.getWebContentsId(); } catch { return Promise.resolve(); } // guest not created yet
 
-  const payload = currentEmulationPayload();
+  const payload = currentEmulationPayload(el);
 
   const prior = emulationChains.get(el) || Promise.resolve();
   const chain = prior
@@ -489,6 +589,7 @@ function animateSwitch() {
   morphTimer = setTimeout(() => {
     phone.classList.remove('morphing');
     scaler.classList.remove('morphing');
+    reportPageRects();   // mid-morph rects were in-between sizes
   }, MORPH_MS + 40);
 }
 
@@ -496,14 +597,16 @@ function animateSwitch() {
 function set(patch, { relayout = true } = {}) {
   S = { ...S, ...patch };
   window.bridge.setState(patch);
+  // a foldable's display, the orientation or Settings may all have changed it
+  if (deviceEntry) device = resolveDevice(deviceEntry);
   if (relayout) { animateSwitch(); layout(); }
 }
 
 /**
  * Persist a patch and push its user agent onto every open tab's webview.
- * Returns true when the user agent actually changed — the caller reloads the
- * active tab, because a live document keeps whatever navigator.userAgent it
- * was loaded with. Background tabs pick up the new UA next time they load.
+ * Returns true when the user agent actually changed — the caller reloads,
+ * because a live document keeps whatever navigator.userAgent it was loaded
+ * with. Background tabs pick up the new UA next time they load.
  */
 function applyUa(patch) {
   const before = S.userAgentId;
@@ -511,6 +614,125 @@ function applyUa(patch) {
   const value = uaById(S.userAgentId).value;
   for (const t of tabs) t.el.setAttribute('useragent', value);
   return S.userAgentId !== before;
+}
+
+/** Reload every page on screen — one normally, two in Split View. */
+function reloadShown() {
+  for (const t of tabs) if (t.el.classList.contains('shown')) t.el.reload();
+}
+
+/* -------------------------------------------------------------- menus */
+function deviceMenuSections() {
+  // Android above iPhone, newest first in each: the oldest iPhone sits nearest
+  // the button, which is where the menu opens from
+  const on = enabledDevices();
+  return ['android', 'ios'].map((platform) => ({
+    label: PLATFORM_LABELS[platform],
+    items: on.filter((d) => d.platform === platform).map((d) => ({ value: d.id, label: d.name })),
+  }));
+}
+
+function bindMenus() {
+  bindMenu($('deviceMenu'), () => ({
+    sections: deviceMenuSections(),
+    value: deviceEntry.id,
+    onPick: pickDevice,
+  }));
+
+  bindMenu($('displayMenu'), () => {
+    const landscape = S.orientation === 'landscape';
+    return {
+      // Outer is the plainest, so it sits nearest the button
+      sections: [{
+        label: deviceEntry.name,
+        items: [...deviceEntry.displays].reverse()
+          .map((d) => ({ value: d.id, label: displayLabel(d, landscape) })),
+      }],
+      value: device.displayId,
+      onPick: pickDisplay,
+    };
+  });
+
+  bindMenu($('browserMenu'), () => ({
+    // oldest browser nearest the button
+    sections: [{
+      items: [...enabledBrowsersFor(deviceEntry.platform)]
+        .sort((a, b) => (b.since || 0) - (a.since || 0))
+        .map((b) => ({ value: b.id, label: b.name })),
+    }],
+    value: browser.id,
+    onPick: pickBrowser,
+  }));
+
+  bindMenu($('uaMenu'), () => ({
+    sections: [{
+      label: 'Profile',
+      items: [...UAS].reverse().map((u) => ({
+        value: u.id,
+        label: u.name,
+        hint: u.id === browser.userAgentId ? browser.name : '',
+      })),
+    }],
+    value: S.userAgentId,
+    onPick: pickUa,
+  }));
+
+  bindMenu($('zoomMenu'), () => ({
+    sections: [{ items: [...ZOOMS].reverse() }],
+    value: S.zoom,
+    onPick: pickZoom,
+  }));
+}
+
+function paintMenus() {
+  const label = (id, text) => { $(id).querySelector('.label').textContent = text; };
+  label('deviceMenu', deviceEntry.name);
+  const display = displayOf(deviceEntry);
+  $('displayMenu').hidden = !display;
+  if (display) label('displayMenu', displayLabel(display, S.orientation === 'landscape'));
+  label('browserMenu', browser.name);
+  label('uaMenu', uaById(S.userAgentId).name);
+  label('zoomMenu', (ZOOMS.find((z) => z.value === S.zoom) || ZOOMS[0]).label);
+}
+
+function pickDevice(id) {
+  const next = deviceById(id);
+  const patch = { deviceId: next.id };
+
+  // switching platform pulls the browser UI and user agent along with it
+  if (next.platform !== deviceEntry.platform) {
+    const nextBrowser = enabledBrowsersFor(next.platform)[0];
+    patch.browserId = nextBrowser.id;
+    patch.userAgentId = nextBrowser.userAgentId;
+    browser = nextBrowser;
+  }
+  deviceEntry = next;
+  const changedUa = applyUa(patch);
+  animateSwitch();
+  layout();
+  if (changedUa) reloadShown();
+}
+
+function pickDisplay(id) {
+  set({ displays: { ...S.displays, [deviceEntry.id]: id } });
+}
+
+function pickBrowser(id) {
+  browser = browserById(id, deviceEntry.platform);
+  const changedUa = applyUa({ browserId: browser.id, userAgentId: browser.userAgentId });
+  animateSwitch();
+  layout();
+  if (changedUa) reloadShown();
+}
+
+function pickUa(id) {
+  applyUa({ userAgentId: id });
+  layout();
+  reloadShown();
+}
+
+function pickZoom(value) {
+  set({ zoom: value });
 }
 
 /* --------------------------------------------------------- navigation */
@@ -558,60 +780,34 @@ function wireUI() {
   });
   urlInput.addEventListener('focus', () => urlInput.select());
 
-  $('back').onclick = () => nav.back();
-  $('forward').onclick = () => nav.forward();
+  $('back').onclick = () => activeWv() && nav.back(activeWv());
+  $('forward').onclick = () => activeWv() && nav.forward(activeWv());
   $('reload').onclick = () => activeWv()?.reload();
 
-  // the drawn browser UIs get working back / forward / reload too
-  for (const el of all('[data-back]')) el.onclick = () => nav.back();
-  for (const el of all('[data-forward]')) el.onclick = () => nav.forward();
-  for (const el of all('[data-reload]')) el.onclick = () => activeWv()?.reload();
-  for (const el of all('[data-new-tab]')) el.onclick = requestNewTab;
+  // The drawn browser UIs get working controls too. Delegated, because iPhone
+  // Duo's rails are redrawn whenever the layout changes; a rail acts on the tab
+  // in its own pane, which in Split View isn't always the active one.
+  phone.addEventListener('click', (e) => {
+    const control = e.target.closest('button');
+    if (!control || !phone.contains(control)) return;
+    const railTab = tabById(Number(control.closest('[data-tab]')?.dataset.tab));
+    const el = (railTab || activeTab())?.el;
+
+    if (control.hasAttribute('data-new-tab-here')) return openTabInOtherHalf();
+    if (control.hasAttribute('data-new-tab')) return requestNewTab();
+    if (!el) return;
+    if (control.hasAttribute('data-back')) nav.back(el);
+    else if (control.hasAttribute('data-forward')) nav.forward(el);
+    else if (control.hasAttribute('data-reload')) el.reload();
+    else if (control.hasAttribute('data-search')) {
+      if (railTab && railTab.id !== activeTabId) activateTab(railTab.id);
+      urlInput.focus();
+      urlInput.select();
+    }
+  });
 
   $('newTab').onclick = requestNewTab;
-
-  $('device').onchange = (e) => {
-    const next = deviceById(e.target.value);
-    const patch = { deviceId: next.id };
-
-    // switching platform pulls the browser UI and user agent along with it
-    if (next.platform !== device.platform) {
-      const nextBrowser = browsersFor(next.platform)[0];
-      patch.browserId = nextBrowser.id;
-      patch.userAgentId = nextBrowser.userAgentId;
-      browser = nextBrowser;
-    }
-    device = next;
-    const changedUa = applyUa(patch);
-    rebuildBrowserSelect();
-    animateSwitch();
-    layout();
-    fitWindow();
-    if (changedUa) activeWv()?.reload();
-  };
-
-  $('browser').onchange = (e) => {
-    browser = browserById(e.target.value, device.platform);
-    const changedUa = applyUa({
-      browserId: browser.id,
-      userAgentId: browser.userAgentId,
-    });
-    $('ua').value = S.userAgentId;
-    animateSwitch();
-    layout();
-    if (changedUa) activeWv()?.reload();
-  };
-
-  $('ua').onchange = (e) => {
-    applyUa({ userAgentId: e.target.value });
-    layout();
-    activeWv()?.reload();
-  };
-
-  $('zoom').onchange = (e) => {
-    const v = e.target.value;
-    set({ zoom: v === 'fit' ? 'fit' : Number(v) });
-  };
+  bindMenus();
 
   $('rotate').onclick = rotate;
   $('chrome').onclick = toggleChrome;
@@ -622,14 +818,14 @@ function wireUI() {
     if (el) window.bridge.toggleDevTools(el.getWebContentsId());
   };
 
-  window.addEventListener('resize', () => { if (S.zoom === 'fit') layout(); });
+  window.addEventListener('resize', () => { if (S.zoom === 'fit') layout(); else reportPageRects(); });
 
   window.bridge.onMenu((action, payload) => {
     switch (action) {
       case 'reload': activeWv()?.reload(); break;
       case 'hard-reload': activeWv()?.reloadIgnoringCache(); break;
-      case 'back': nav.back(); break;
-      case 'forward': nav.forward(); break;
+      case 'back': if (activeWv()) nav.back(activeWv()); break;
+      case 'forward': if (activeWv()) nav.forward(activeWv()); break;
       case 'focus-url': urlInput.focus(); break;
       case 'devtools': {
         const el = activeWv();
@@ -640,42 +836,18 @@ function wireUI() {
       case 'toggle-chrome': toggleChrome(); break;
       case 'toggle-meta': set({ showMeta: !S.showMeta }); break;
       case 'screenshot': screenshot(payload || {}); break;
-      case 'zoom': $('zoom').value = String(payload); set({ zoom: payload }); break;
-      case 'device':
-        $('device').value = payload;
-        $('device').dispatchEvent(new Event('change'));
-        break;
+      case 'zoom': pickZoom(payload); break;
+      case 'device': if (payload !== deviceEntry.id) pickDevice(payload); break;
       case 'reapply-emulation': applyEmulation(); break;
       case 'new-tab': requestNewTab(); break;
       case 'close-tab': if (activeTabId != null) closeTab(activeTabId); break;
+      case 'settings': openSettings(); break;
     }
   });
 }
 
 function rotate() {
   set({ orientation: S.orientation === 'portrait' ? 'landscape' : 'portrait' });
-  fitWindow();
-}
-
-/**
- * The phone's outside dimensions. A Split View pane has no bezel where it meets
- * the other app, so it isn't simply the screen plus two bezels.
- */
-function bodySize(g) {
-  const foldX = g.foldEdge === 'left' || g.foldEdge === 'right';
-  const foldY = g.foldEdge === 'top' || g.foldEdge === 'bottom';
-  return {
-    w: g.w + device.bezel * (foldX ? 1 : 2),
-    h: g.h + device.bezel * (foldY ? 1 : 2),
-  };
-}
-
-/** Ask the window to grow/shrink around the phone (clamped to the screen). */
-function fitWindow() {
-  if (S.zoom !== 'fit') return;
-  const body = bodySize(geometry());
-  const chromeH = $('toolbar').offsetHeight + $('tabbar').offsetHeight + $('devicebar').offsetHeight;
-  window.bridge.fitWindow(body.w + 40, body.h + 48 + chromeH);
 }
 
 function toggleChrome() {
@@ -703,14 +875,19 @@ function attachWebviewListeners(el, tabId) {
     if (tabId === activeTabId) sampleTheme(el);
   });
 
+  // Clicking into the other half of Split View makes it the tab you're working in
+  el.addEventListener('focus', () => {
+    if (tabId !== activeTabId && el.classList.contains('shown')) activateTab(tabId);
+  });
+
   el.addEventListener('did-start-loading', () => {
     if (tabId === activeTabId) $('spinner').hidden = false;
   });
 
   el.addEventListener('did-stop-loading', () => {
+    syncNav();
     if (tabId !== activeTabId) return;
     $('spinner').hidden = true;
-    syncNav();
     sampleTheme(el);
   });
 
@@ -725,6 +902,7 @@ function attachWebviewListeners(el, tabId) {
     tab.url = url || tab.url;
     if (!tab.title) tab.title = hostnameOf(tab.url);   // usable label before the real title arrives
     if (tabId === activeTabId) updateChromeForActiveTab();
+    else syncNav();
     if (isPrimary(tabId)) set({ url: tab.url }, { relayout: false });
     renderTabs();
   };
@@ -770,13 +948,20 @@ function updateChromeForActiveTab({ forceUrlInput = false } = {}) {
   syncNav();
 }
 
+/** Enable back/forward for the tab each set of controls acts on. */
 function syncNav() {
-  const b = nav.canBack();
-  const f = nav.canForward();
+  const el = activeWv();
+  const b = Boolean(el && nav.canBack(el));
+  const f = Boolean(el && nav.canForward(el));
   $('back').disabled = !b;
   $('forward').disabled = !f;
-  for (const el of all('[data-back]')) el.disabled = !b;
-  for (const el of all('[data-forward]')) el.disabled = !f;
+
+  for (const control of all('#phone [data-back], #phone [data-forward]')) {
+    const railTab = tabById(Number(control.closest('[data-tab]')?.dataset.tab));
+    const target = (railTab || activeTab())?.el;
+    const can = control.hasAttribute('data-back') ? nav.canBack : nav.canForward;
+    control.disabled = !(target && can(target));
+  }
 }
 
 /* -------------------------------------------------- status bar tinting
@@ -857,6 +1042,7 @@ function tickClock() {
   const now = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   $('clockIos').textContent = now;
   $('clockAndroid').textContent = now;
+  for (const el of all('[data-clock]')) el.textContent = now;
 }
 
 function loadImage(src) {
@@ -889,15 +1075,14 @@ function canvasToBase64(canvas) {
 const SAFE_CAPTURE_DPR = 2;
 
 /**
- * Capture the active tab as a PNG at the device's real resolution, working
- * around the dpr=3 capture bug above. For a full-page shot, scrolls in
- * increments and stitches the results — a <webview>'s guest paints into a
- * surface tied to its own on-screen DOM size, so asking CDP for a taller
- * capture than that (captureBeyondViewport, or a taller declared height with
- * an explicit clip) just tiles whatever's already painted; only ever asking
- * for what's actually on screen avoids that entirely. (Known limitation:
- * position:fixed/sticky elements appear once per tile, same as any
- * scroll-and-stitch screenshot tool.)
+ * Capture a tab as a PNG at the device's real resolution, working around the
+ * dpr=3 capture bug above. For a full-page shot, scrolls in increments and
+ * stitches the results — a <webview>'s guest paints into a surface tied to its
+ * own on-screen DOM size, so asking CDP for a taller capture than that
+ * (captureBeyondViewport, or a taller declared height with an explicit clip)
+ * just tiles whatever's already painted; only ever asking for what's actually
+ * on screen avoids that entirely. (Known limitation: position:fixed/sticky
+ * elements appear once per tile, same as any scroll-and-stitch screenshot tool.)
  *
  * Returns a base64 PNG (no data-URL prefix), or null on failure.
  */
@@ -905,12 +1090,12 @@ async function captureScreenshotPixels(el, { fullPage }) {
   const realDpr = device.dpr;
   const captureDpr = Math.min(realDpr, SAFE_CAPTURE_DPR);
   const scaleUp = realDpr / captureDpr;
-  const g = geometry();
-  const targetWidth = Math.round(g.viewW * realDpr);
+  const pane = paneForTab(tabOf(el)?.id, geometry());
+  const targetWidth = Math.round(pane.viewW * realDpr);
 
   if (captureDpr !== realDpr) {
     await window.bridge.emulate(el.getWebContentsId(),
-      { ...currentEmulationPayload(), dpr: captureDpr });
+      { ...currentEmulationPayload(el), dpr: captureDpr });
     await new Promise((r) => setTimeout(r, 60));   // let the resize actually land
   }
 
@@ -923,7 +1108,7 @@ async function captureScreenshotPixels(el, { fullPage }) {
       if (!img) return null;
       const canvas = document.createElement('canvas');
       canvas.width = targetWidth;
-      canvas.height = Math.round(g.viewH * realDpr);
+      canvas.height = Math.round(pane.viewH * realDpr);
       canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
       return canvasToBase64(canvas);
     }
@@ -942,7 +1127,7 @@ async function captureScreenshotPixels(el, { fullPage }) {
     const ctx = canvas.getContext('2d');
 
     let lastY = -1;
-    for (let target = 0; ; target += g.viewH) {
+    for (let target = 0; ; target += pane.viewH) {
       let y;
       try {
         await el.executeJavaScript(`window.scrollTo(0, ${target})`);

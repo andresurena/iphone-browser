@@ -310,8 +310,12 @@ select {
 
 /* ------------------------------------------------------------- frames */
 .frame {
+  position: relative;
   padding: var(--bezel);
-  border-radius: calc(var(--radius) + var(--bezel));
+  /* per corner: iPhone Duo's outer display is tight on its hinge side */
+  border-radius:
+    calc(var(--r-tl) + var(--bezel)) calc(var(--r-tr) + var(--bezel))
+    calc(var(--r-br) + var(--bezel)) calc(var(--r-bl) + var(--bezel));
   background:
     linear-gradient(148deg,
       #7d7a76 0%, #34322f 9%, #56534e 20%, #23211f 34%,
@@ -338,23 +342,35 @@ select {
   position: relative;
   width: var(--w);
   height: var(--h);
-  border-radius: var(--radius);
+  border-radius: var(--r-tl) var(--r-tr) var(--r-br) var(--r-bl);
   overflow: hidden;
   background: #000;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, .9) inset;
 }
 
+/* Positioned inline by placeWebviews() in shell.js, one rectangle per pane:
+   usually just the active tab, but Split View shows two at once. */
 .frameview {
   position: absolute;
-  left: var(--left-inset);
-  top: var(--top-inset);
-  width: calc(var(--w) - var(--left-inset) - var(--right-inset));
-  height: calc(var(--h) - var(--top-inset) - var(--bottom-inset));
   background: #fff;
   border: 0;
-  display: none;      /* only the active tab's webview is shown */
+  display: none;
 }
-.frameview.active { display: flex; }
+.frameview.shown { display: flex; }
+
+/* the hinge on iPhone Duo's outer display: a darker band down that edge */
+#phone.hinge-left .frame::after,
+#phone.hinge-top .frame::after {
+  content: '';
+  position: absolute;
+  background: linear-gradient(90deg, rgba(0, 0, 0, .55), rgba(255, 255, 255, .08) 70%, transparent);
+  pointer-events: none;
+}
+#phone.hinge-left .frame::after { left: 0; top: 14%; bottom: 14%; width: 4px; border-radius: 2px; }
+#phone.hinge-top .frame::after {
+  top: 0; left: 14%; right: 14%; height: 4px; border-radius: 2px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, .55), rgba(255, 255, 255, .08) 70%, transparent);
+}
 
 /* physical buttons */
 .btn {
@@ -378,49 +394,6 @@ select {
 #phone.pixel .vol-up  { left: auto; right: -3px; top: 222px; height: 96px;
                         border-radius: 0 2px 2px 0; }
 #phone.landscape .btn { display: none; }
-
-/* ------------------------------------------------- Split View pane
-   Half of a continuous display rather than a device, so: no hardware buttons,
-   and on the edge where the other app begins the glass simply carries on —
-   no bezel, no corner radius. That edge turns with the device. */
-#phone.pane .btn { display: none; }
-
-#phone.fold-right .frame {
-  padding-right: 0;
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-#phone.fold-right .screen {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-#phone.fold-left .frame {
-  padding-left: 0;
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-}
-#phone.fold-left .screen {
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-}
-#phone.fold-bottom .frame {
-  padding-bottom: 0;
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-}
-#phone.fold-bottom .screen {
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-}
-#phone.fold-top .frame {
-  padding-top: 0;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-}
-#phone.fold-top .screen {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-}
 
 /* --------------------------------------------------------- status bar */
 .statusbar {
@@ -536,47 +509,6 @@ select {
   transform: translateY(-50%);
 }
 
-/* ------------------------------ iPhone Duo: controls on the vertical axis
-   The status bar, the Dynamic Island and the browser's toolbars all share one
-   strip down a long edge. Keep these rules after the landscape and no-front
-   ones above: a Duo can be in either state at the same time, and the strip
-   always wins. */
-#phone.side-controls .statusbar {
-  inset: 0 auto 0 0;
-  width: var(--strip-w);
-  height: auto;
-}
-#phone.side-controls.edge-right .statusbar { inset: 0 0 0 auto; }
-
-#phone.side-controls .island {
-  left: calc(var(--strip-w) / 2);
-  top: 20px;
-  transform: translateX(-50%);
-}
-#phone.side-controls.edge-right .island {
-  left: auto;
-  right: calc(var(--strip-w) / 2);
-  transform: translateX(50%);
-}
-
-/* the clock sits under the island, the indicators stack at the foot of the
-   strip — the same order as a normal status bar, turned through 90° */
-#phone.side-controls .statusbar.ios .time {
-  left: 50%;
-  top: calc(var(--front-top) + var(--front-h) + 24px);
-  transform: translateX(-50%);
-  font-size: 15px;
-}
-#phone.side-controls .statusbar.ios .indicators {
-  flex-direction: column;
-  left: 50%;
-  right: auto;
-  top: auto;
-  bottom: 28px;
-  transform: translateX(-50%);
-  gap: 9px;
-}
-
 /* ------------------------------------------------- home / gesture bar */
 .homebar {
   position: absolute;
@@ -667,82 +599,6 @@ select {
 .safari-glass .round svg { width: 22px; height: 22px; }
 .safari-glass svg circle[r="1.9"] { fill: currentColor; stroke: none; }
 .safari-glass .round:disabled { opacity: .45; }
-
-/* ------------------------------------- iPhone Duo · vertical control rail
-   Stands in for every horizontal bar at once, so it's drawn for whichever
-   browser is selected rather than one per skin. Padding keeps it clear of the
-   Dynamic Island and clock above and the status indicators below, all of which
-   share this strip. */
-.side-rail {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: var(--left-inset);
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  /* top: clear the island and the clock beneath it; bottom: clear the status
-     indicators. Both share this strip, so the rail has to yield to them. */
-  padding: calc(var(--front-h) + 72px) 0 100px;
-  pointer-events: none;
-  overflow: hidden;
-}
-#phone.edge-right .side-rail {
-  left: auto;
-  right: 0;
-  width: var(--right-inset);
-}
-.side-rail .rail-group {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-.side-rail .glass {
-  pointer-events: auto;
-  border: 0;
-  padding: 0;
-  color: var(--ui-fg);
-  background: color-mix(in srgb, var(--ui-neutral) 60%, transparent);
-  backdrop-filter: blur(26px) saturate(180%);
-  box-shadow:
-    0 0 0 .5px color-mix(in srgb, var(--ui-fg) 12%, transparent),
-    0 8px 22px rgba(0, 0, 0, .16);
-}
-.side-rail .round {
-  width: 44px;
-  height: 44px;
-  flex: none;
-  border-radius: 22px;
-  display: grid;
-  place-items: center;
-}
-.side-rail svg {
-  width: 20px;
-  height: 20px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.side-rail svg circle[r="1.9"] { fill: currentColor; stroke: none; }
-
-/* Too little strip to hold everything: give up the clock and the two most
-   expendable controls instead of clipping the lot. */
-#phone.rail-tight .side-rail {
-  padding-top: calc(var(--front-h) + 26px);
-  padding-bottom: 96px;
-}
-#phone.rail-tight .side-rail [data-reload],
-#phone.rail-tight .side-rail [data-new-tab] { display: none; }
-#phone.rail-tight .statusbar .time { display: none; }
-.side-rail .boxed svg { grid-area: 1 / 1; width: 22px; height: 22px; }
-.side-rail .boxed span {
-  grid-area: 1 / 1;
-  font: 600 11px -apple-system, system-ui, sans-serif;
-}
 
 /* --------------------------------------------------- Chrome · iOS bars */
 .chrome-ios-top {
@@ -980,3 +836,392 @@ select {
   font: inherit;
   padding: 0;
 }
+
+/* ======================================================= shared utilities */
+/* Elements with their own display rule would otherwise ignore `hidden` */
+[hidden] { display: none !important; }
+
+/* Profile and Web Inspector only appear in Advanced Mode (Settings › General) */
+body:not(.advanced) .advanced-only { display: none !important; }
+
+#phone.no-buttons .btn { display: none; }
+#phone.split .homebar { display: none; }
+
+/* the tab showing in Split View's other half */
+.tab.beside { box-shadow: inset 0 0 0 1px var(--chrome-line); color: var(--fg); }
+
+/* ============================================================ menu buttons */
+.menu-btn {
+  -webkit-app-region: no-drag;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 200px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 7px 0 10px;
+  border: 1px solid var(--chrome-line);
+  border-radius: 6px;
+  background: var(--field);
+  color: var(--fg);
+  font: 12px -apple-system, system-ui, sans-serif;
+}
+.menu-btn:hover,
+.menu-btn.open { background: var(--field-focus); }
+.menu-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.menu-btn .label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.menu-btn .chev {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: .6;
+}
+
+/* ================================================================ popovers */
+.popover {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 5px;
+  background: color-mix(in srgb, var(--chrome) 90%, transparent);
+  backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid var(--chrome-line);
+  border-radius: 9px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, .35);
+}
+.popover-head {
+  padding: 6px 8px 3px 24px;
+  font: 600 11px -apple-system, system-ui, sans-serif;
+  color: var(--fg-dim);
+}
+.popover-head:not(:first-child) { margin-top: 5px; }
+.popover-item {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 12px 0 4px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--fg);
+  font: 13px -apple-system, system-ui, sans-serif;
+  text-align: left;
+  white-space: nowrap;
+}
+.popover-item:hover,
+.popover-item:focus { background: var(--accent); color: #fff; outline: none; }
+.popover-item .tick {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  visibility: hidden;
+}
+.popover-item[aria-checked="true"] .tick { visibility: visible; }
+.popover-hint { margin-left: auto; padding-left: 18px; font-size: 11px; opacity: .6; }
+
+/* ================================================================ settings */
+.settings {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, .32);
+}
+.settings-card {
+  width: min(560px, calc(100vw - 48px));
+  max-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+  background: var(--chrome);
+  border: 1px solid var(--chrome-line);
+  border-radius: 12px;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, .45);
+  overflow: hidden;
+}
+.settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 12px 4px 18px;
+}
+.settings-head h2 { margin: 0; font: 600 15px -apple-system, system-ui, sans-serif; }
+
+.settings-tabs {
+  display: flex;
+  gap: 2px;
+  margin: 8px 18px 6px;
+  padding: 2px;
+  background: var(--field);
+  border-radius: 8px;
+}
+.settings-tabs [role="tab"] {
+  flex: 1;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-dim);
+  font: 500 12px -apple-system, system-ui, sans-serif;
+}
+.settings-tabs [role="tab"][aria-selected="true"] { background: var(--accent); color: #fff; }
+.settings-tabs [role="tab"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.settings-pane { min-height: 300px; overflow-y: auto; padding: 4px 18px 20px; }
+.settings-note { margin: 8px 0 4px; font-size: 12px; color: var(--fg-dim); }
+.settings-group {
+  margin: 16px 0 2px;
+  font: 600 11px -apple-system, system-ui, sans-serif;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--chrome-line);
+}
+.settings-row:last-child { border-bottom: 0; }
+.settings-row.sub { padding-left: 16px; }
+.row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.row-title { font-size: 13px; font-weight: 500; }
+.row-hint { font-size: 11.5px; color: var(--fg-dim); line-height: 1.35; }
+.row-hint:empty { display: none; }
+
+input.switch {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: none;
+  position: relative;
+  width: 34px;
+  height: 20px;
+  margin: 0;
+  border-radius: 10px;
+  background: rgba(120, 120, 128, .38);
+  transition: background .15s ease;
+}
+input.switch::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+  transition: transform .15s ease;
+}
+input.switch:checked { background: var(--accent); }
+input.switch:checked::before { transform: translateX(14px); }
+input.switch:disabled { opacity: .45; }
+input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.settings-pane.about { text-align: center; padding-top: 28px; }
+.about h3 { margin: 0; font: 600 20px -apple-system, system-ui, sans-serif; }
+.about-version { margin: 4px 0 0; font-size: 12px; color: var(--fg-dim); }
+.about-by { margin: 26px 0 8px; font-size: 13px; font-weight: 600; }
+.about-bio {
+  max-width: 420px;
+  margin: 0 auto;
+  font-size: 13px;
+  line-height: 1.55;
+  -webkit-user-select: text;
+  cursor: text;
+}
+.about-link {
+  margin-top: 16px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  font: 500 13px -apple-system, system-ui, sans-serif;
+}
+.about-link:hover { text-decoration: underline; }
+.about-link:focus-visible { outline: 2px solid var(--accent); }
+
+/* ============================================= iPhone Duo — see duo.js */
+.duo-layer { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.duo-layer.above { z-index: 3; }
+
+/* each app window: the rail's background, and what shows behind a page */
+.duo-pane { position: absolute; background: var(--bar-solid); }
+
+.duo-divider {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  background: #000;
+}
+.duo-grabber { width: 4px; height: 44px; border-radius: 2px; background: rgba(255, 255, 255, .5); }
+.duo-divider.horizontal .duo-grabber { width: 44px; height: 4px; }
+
+.duo-camera {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 36%, #1e2330 0, #07080b 52%, #000 100%);
+  box-shadow: 0 0 0 .5px rgba(255, 255, 255, .07);
+}
+
+/* a partially folded display: where the crease lands on the layout */
+.duo-crease {
+  position: absolute;
+  pointer-events: none;
+  background: linear-gradient(90deg,
+    transparent, rgba(0, 0, 0, .06) 35%, rgba(0, 0, 0, .18) 50%,
+    rgba(255, 255, 255, .12) 56%, transparent);
+}
+.duo-crease.vertical { top: 0; bottom: 0; width: 16px; margin-left: -8px; }
+.duo-crease.horizontal {
+  left: 0; right: 0; height: 16px; margin-top: -8px;
+  background: linear-gradient(180deg,
+    transparent, rgba(0, 0, 0, .06) 35%, rgba(0, 0, 0, .18) 50%,
+    rgba(255, 255, 255, .12) 56%, transparent);
+}
+
+.duo-rail { position: absolute; pointer-events: none; }
+.duo-col {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+}
+.duo-group { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.duo-spring { flex: 1; min-height: 24px; }
+
+.duo-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 54px;
+  margin-bottom: 16px;
+  color: var(--bar-fg);
+}
+.duo-status .time {
+  font: 600 14px/18px -apple-system, "SF Pro Text", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* scoped under .duo-rail so it outranks the rail's button-icon rule below */
+.duo-rail .duo-glyph { width: 32px; height: 32px; fill: currentColor; stroke: none; }
+.duo-rail .duo-glyph .ring,
+.duo-rail .duo-glyph .arc { fill: none; stroke: currentColor; stroke-linecap: round; }
+.duo-rail .duo-glyph .ring { stroke-width: 2.2; }
+.duo-rail .duo-glyph .arc { stroke-width: 2; }
+
+.duo-rail .glass {
+  pointer-events: auto;
+  border: 0;
+  padding: 0;
+  color: var(--ui-fg);
+  background: color-mix(in srgb, var(--ui-neutral) 62%, transparent);
+  backdrop-filter: blur(26px) saturate(180%);
+  box-shadow:
+    0 0 0 .5px color-mix(in srgb, var(--ui-fg) 12%, transparent),
+    0 8px 22px rgba(0, 0, 0, .14);
+}
+.duo-rail .round {
+  flex: none;
+  position: relative;
+  width: 46px;
+  height: 46px;
+  border-radius: 23px;
+  display: grid;
+  place-items: center;
+}
+.duo-rail .capsule {
+  flex: none;
+  width: 46px;
+  height: 86px;
+  border-radius: 23px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+.duo-rail .cap-item {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  padding: 0;
+  border-radius: 20px;
+  background: transparent;
+  color: inherit;
+  display: grid;
+  place-items: center;
+}
+.duo-rail svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.duo-rail svg circle[r="1.9"] { fill: currentColor; stroke: none; }
+.duo-rail button:disabled { opacity: .38; }
+.duo-rail .count {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font: 600 10px -apple-system, system-ui, sans-serif;
+}
+
+/* the other half of Split View, before a second tab is open */
+.duo-empty {
+  position: absolute;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  background: var(--ui-neutral);
+  color: color-mix(in srgb, var(--ui-fg) 60%, transparent);
+  font: 14px/1.4 -apple-system, system-ui, sans-serif;
+  text-align: center;
+}
+.duo-empty p { margin: 0; max-width: 220px; }
+.duo-empty-btn {
+  padding: 9px 18px;
+  border: 0;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--ui-fg) 12%, transparent);
+  color: var(--ui-fg);
+  font: 600 14px -apple-system, system-ui, sans-serif;
+}
+.duo-corner { position: absolute; pointer-events: none; }

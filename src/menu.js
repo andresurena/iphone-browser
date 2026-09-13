@@ -18,6 +18,8 @@ module.exports = function buildMenu(getWin) {
       submenu: [
         { role: 'about' },
         { type: 'separator' },
+        { label: 'Settings…', accelerator: 'Cmd+,', click: to('menu:settings') },
+        { type: 'separator' },
         { role: 'services' },
         { type: 'separator' },
         { role: 'hide' },

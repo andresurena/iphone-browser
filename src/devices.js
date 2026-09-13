@@ -16,106 +16,97 @@
 
 const ISLAND = { type: 'island', w: 126, h: 37, top: 11 };
 
-// iPhone Duo's inner camera sits under the display and stays invisible until
-// the camera is in use, so there's nothing to draw and nothing to lay out around.
-const UNDER_DISPLAY = { type: 'none', w: 0, h: 0, top: 0 };
-
 const IOS_LANDSCAPE_SAFE = { top: 0, right: 59, bottom: 21, left: 59 };
 
 /**
  * iPhone Duo — Apple's first foldable, September 2026.
  *
- * Folded and unfolded are as different to a layout as an iPhone and an iPad,
- * so they're two entries here rather than one device with a toggle: you test a
- * page against one, then the other.
+ * One device with several `displays`, picked from a second menu that only
+ * foldables get. Each display is a genuinely different target: the outer
+ * display, the inner one, the inner one partially folded, and the inner one in
+ * Split View with your page on either side. Orientation stays on the rotate
+ * button, so every display comes in both.
  *
  * Panel sizes are Apple's — 1398 × 2034 on the 5.4" outer display and
- * 1878 × 2670 on the 7.6" inner one, both @3x, giving 466 × 678 pt and
- * 626 × 890 pt.
+ * 1878 × 2670 on the 7.6" inner one, both @3x: 466 × 678 pt and 626 × 890 pt.
  *
- * The part that catches layouts out is where the system UI goes. The outer
- * display is wider and shorter than any other iPhone, so iOS moves the status
- * bar, the Dynamic Island and the browser's toolbars onto a strip down the
- * trailing edge to protect what vertical space there is. The inner display does
- * the same in landscape but keeps ordinary top and bottom bars in portrait,
- * where height isn't scarce. `sideControls` encodes that: 'always' |
- * 'landscape'. The strip stays on the right even in right-to-left languages,
- * because it's aligned to the camera rather than to the reading direction.
+ * What catches layouts out is where the system UI goes. On the outer display,
+ * and on the inner one in landscape, iOS runs the status bar, toolbar and tab
+ * bar down the trailing edge instead of across the top and bottom (`rail`). The
+ * inner display keeps ordinary horizontal bars in portrait. In Split View each
+ * app puts its controls on its own outer edge, so the left-hand app's rail is on
+ * the left.
  *
- * Caveat worth knowing: the device doesn't reach anyone until 23 October 2026,
- * and Apple has published no numbers for the safe-area insets, the width of that
- * strip, or the Dynamic Island's vertical geometry — its guidance is explicitly
- * "query them at runtime, don't assume opposite edges match". The panel sizes
- * and the trailing-edge placement below are Apple's; `statusBar` here (the strip
- * width) is an estimate, so treat the drawn chrome as indicative until the
- * hardware and the iOS 27.1 simulator land.
+ * The drawn geometry — camera, rail spacing, divider, crease — is measured from
+ * the diagrams in Apple's guidelines, not from hardware: the device ships on
+ * 23 October 2026 and Apple has published no inset values. See
+ * DUO_RAIL in shell.js, and treat those numbers as estimates until then.
  *
  * https://developer.apple.com/design/human-interface-guidelines/designing-for-iphone-duo
  */
+const IPHONE_DUO = {
+  id: 'iphone-duo',
+  name: 'iPhone Duo',
+  platform: 'ios',
+  dpr: 3,
+  buttons: 'none',        // Apple's diagrams don't place any, so neither do we
+  homeIndicator: 34,
+  landscapeSafeArea: IOS_LANDSCAPE_SAFE,
+  displays: [
+    {
+      // Wider and shorter than any other iPhone. The hinge runs down the left
+      // edge, which is why those corners are tight and the right ones generous;
+      // the camera is a plain circle in the top-right corner, in line with the
+      // rail beneath it.
+      id: 'outer',
+      name: 'Outer',
+      width: 466,
+      height: 678,
+      bezel: 8,
+      corners: { hinge: 16, free: 62 },
+      hinge: 'left',
+      camera: 'corner',
+      rail: 'always',
+      statusBar: 62,
+    },
+    {
+      id: 'inner',
+      name: 'Inner',
+      width: 626,
+      height: 890,
+      bezel: 7,
+      screenRadius: 44,
+      camera: 'hidden',   // under the display, invisible unless in use
+      rail: 'landscape',
+      statusBar: 48,
+    },
+    {
+      id: 'inner-folded',
+      name: 'Inner, partially folded',
+      of: 'inner',
+      folded: true,
+    },
+    {
+      id: 'split-leading',
+      name: 'Split View, page on left',
+      nameUpright: 'Split View, page on top',
+      of: 'inner',
+      split: 'leading',
+    },
+    {
+      id: 'split-trailing',
+      name: 'Split View, page on right',
+      nameUpright: 'Split View, page on bottom',
+      of: 'inner',
+      split: 'trailing',
+    },
+  ],
+};
+
+// Newest first within each platform. The device menu opens upward from the
+// bottom bar, so this puts the oldest device nearest the button.
 const DEVICES = [
-  {
-    id: 'iphone-duo-outer',
-    name: 'iPhone Duo (Outer)',
-    platform: 'ios',
-    width: 466,
-    height: 678,
-    dpr: 3,
-    bezel: 8,
-    screenRadius: 44,
-    front: ISLAND,
-    buttons: 'iphone',
-    statusBar: 62,      // the width of the side strip, not a height, when sideControls applies
-    homeIndicator: 34,
-    landscapeSafeArea: IOS_LANDSCAPE_SAFE,
-    sideControls: 'always',
-    controlEdge: 'right',
-  },
-  {
-    id: 'iphone-duo-inner',
-    name: 'iPhone Duo (Inner)',
-    platform: 'ios',
-    width: 626,
-    height: 890,
-    dpr: 3,
-    bezel: 6,           // the inner bezel is barely there — it has to fold
-    screenRadius: 34,
-    front: UNDER_DISPLAY,
-    buttons: 'iphone',
-    statusBar: 48,
-    homeIndicator: 34,
-    landscapeSafeArea: IOS_LANDSCAPE_SAFE,
-    sideControls: 'landscape',
-    controlEdge: 'right',
-  },
-  {
-    // Half the inner display, which is where a lot of layouts will actually
-    // land: Split View here is a fixed 50/50 with no draggable divider, so
-    // 890 / 2 = 445 is the only width an app ever gets beside another one.
-    // Apple sized it to be "roughly the same size and shape as the outer
-    // screen", so the two are worth checking against each other.
-    //
-    // This models the left-hand app, and that flips the one thing the other
-    // two Duo entries share: in Split View each app puts its controls on its
-    // own *outer* edge, so the left app's strip is on the LEFT while every
-    // other Duo state has it on the right. `foldEdge` marks where the display
-    // simply carries on into the other app — no bezel, no rounded corner.
-    id: 'iphone-duo-split',
-    name: 'iPhone Duo (Split View)',
-    platform: 'ios',
-    width: 445,
-    height: 626,
-    dpr: 3,
-    bezel: 6,
-    screenRadius: 34,
-    front: UNDER_DISPLAY,
-    buttons: 'none',
-    statusBar: 48,
-    homeIndicator: 34,
-    landscapeSafeArea: IOS_LANDSCAPE_SAFE,
-    sideControls: 'always',
-    controlEdge: 'left',
-    foldEdge: 'right',
-  },
+  IPHONE_DUO,
   {
     id: 'iphone-17-pro-max',
     name: 'iPhone 17 Pro Max',
@@ -302,6 +293,17 @@ const DEFAULTS = {
   colorScheme: 'system',   // 'system' | 'light' | 'dark'
   url: '',                 // blank on a fresh install; nobody wants a stranger's site to load
   showMeta: false,         // the "440 × 776 css px · @3x · …" readout — View menu only
+
+  displays: {},            // chosen display per foldable, e.g. { 'iphone-duo': 'outer' }
+
+  // Settings. Hidden devices and browsers are stored as the ones switched OFF,
+  // so anything added to the catalogue later shows up without anyone having to
+  // go and turn it on.
+  disabledDevices: [],
+  disabledBrowsers: [],
+  restoreLast: true,       // reopen on the last device used, or on startDeviceId
+  startDeviceId: 'iphone-16-pro-max',
+  advanced: false,         // shows the Profile (user agent) menu and Web Inspector button
 };
 
 const byId = (list, id, fallback) => list.find((d) => d.id === id) || fallback || list[0];

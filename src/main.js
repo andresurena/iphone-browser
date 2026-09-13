@@ -101,6 +101,58 @@ function deviceMetricsParams(opts) {
   };
 }
 
+/* ---------------------------------------------------------- touch cursor
+   Chromium's touch emulation hangs off the window's shared input router, not the
+   page it was enabled for. So while any page turns mouse input into touches, the
+   whole window is under it: the round touch cursor follows the pointer onto the
+   toolbar and bottom bar, and the app's own controls get no mouse moves at all —
+   no hover, no cursor change. Confirmed directly: with it on, the shell page
+   receives zero mousemove events; switched off on the page, they come straight
+   back.
+
+   The page can't report the pointer leaving (it isn't being sent the pointer),
+   and the shell can't report it arriving (it isn't being sent anything), so the
+   main process watches the pointer itself and keeps mouse-as-finger switched on
+   only for the page the pointer is over. The renderer reports where the pages
+   are on screen — nothing, while Settings or a menu covers them. */
+
+const pageRects = new Map();       // webContents id → rect, in window content coordinates
+const touchForMouse = new Map();   // webContents id → whether it's currently on
+
+ipcMain.on('pages:rects', (_e, rects) => {
+  pageRects.clear();
+  for (const r of rects || []) pageRects.set(r.wcId, r);
+  syncTouchToPointer();
+});
+
+function pointerOverPage(wcId) {
+  const r = pageRects.get(wcId);
+  if (!r || !win || win.isDestroyed() || !win.isVisible() || win.isMinimized()) return false;
+  const p = screen.getCursorScreenPoint();
+  const c = win.getContentBounds();
+  const x = p.x - c.x;
+  const y = p.y - c.y;
+  return x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height;
+}
+
+function syncTouchToPointer() {
+  const pending = [];
+  for (const wcId of attached) {
+    const on = pointerOverPage(wcId);
+    if (touchForMouse.get(wcId) === on) continue;
+    touchForMouse.set(wcId, on);
+    const wc = webContents.fromId(wcId);
+    if (!wc || wc.isDestroyed()) continue;
+    pending.push(send(wc, 'Emulation.setEmitTouchEventsForMouse',
+      on ? { enabled: true, configuration: 'mobile' } : { enabled: false }));
+  }
+  return Promise.all(pending);
+}
+
+// ~12 checks a second: fast enough that the cursor has changed by the time
+// you've moved a few pixels past the edge, and a trivial amount of work
+setInterval(syncTouchToPointer, 80);
+
 /**
  * Reproduce what Chrome DevTools' device toolbar does:
  *   - viewport + screen metrics, mobile viewport semantics, device pixel ratio
@@ -124,10 +176,10 @@ async function applyEmulation(wcId, opts) {
       acceptLanguage: app.getLocale() || 'en-US',
     });
     await send(wc, 'Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
-    await send(wc, 'Emulation.setEmitTouchEventsForMouse', {
-      enabled: true,
-      configuration: 'mobile',
-    });
+    // mouse-as-finger only while the pointer is actually over this page — see
+    // syncTouchToPointer() below for why it can't simply stay on
+    touchForMouse.delete(wc.id);
+    await syncTouchToPointer();
     // makes env(safe-area-inset-*) real, so notch-aware CSS actually applies
     if (safeArea) {
       await send(wc, 'Emulation.setSafeAreaInsetsOverride', { insets: safeArea });
@@ -155,16 +207,48 @@ async function applyEmulation(wcId, opts) {
 
 /* --------------------------------------------------------------- window */
 
+const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+
+/**
+ * Where the window opens. The first time: the full height of the usable screen,
+ * menu bar down to the Dock, so the phone is drawn big enough to read. workArea
+ * is what already excludes those, on whatever display and Dock arrangement a
+ * given Mac has. After that, wherever and however big it was last left — clamped
+ * back onto a display that still exists, in case it was on one since unplugged.
+ *
+ * Deliberately a different key from the old windowWidth / windowHeight: those
+ * were written by the window resizing itself around each device, not by anyone
+ * choosing a size, so restoring them would bring the small window straight back.
+ */
+function initialBounds(state) {
+  const saved = state.windowBounds;
+  if (saved && [saved.x, saved.y, saved.width, saved.height].every(Number.isFinite)) {
+    const { workArea } = screen.getDisplayMatching(saved);
+    const width = Math.min(saved.width, workArea.width);
+    const height = Math.min(saved.height, workArea.height);
+    return {
+      width,
+      height,
+      x: clamp(saved.x, workArea.x, workArea.x + workArea.width - width),
+      y: clamp(saved.y, workArea.y, workArea.y + workArea.height - height),
+    };
+  }
+
+  const { workArea } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+  const width = Math.round(clamp(workArea.width * 0.55, Math.min(900, workArea.width), 1400));
+  return {
+    width,
+    height: workArea.height,
+    x: workArea.x + Math.round((workArea.width - width) / 2),
+    y: workArea.y,
+  };
+}
+
 function createWindow() {
   const state = loadState();
 
-  // A full-height iPhone is taller than a lot of Mac screens — never open
-  // bigger than the space we actually have.
-  const area = screen.getPrimaryDisplay().workAreaSize;
-
   win = new BrowserWindow({
-    width: Math.min(state.windowWidth || 600, area.width - 40),
-    height: Math.min(state.windowHeight || 1000, area.height - 20),
+    ...initialBounds(state),
     minWidth: 580,
     minHeight: 500,
     show: false,
@@ -184,13 +268,21 @@ function createWindow() {
   win.loadFile(path.join(__dirname, 'shell', 'index.html'));
   win.once('ready-to-show', () => win.show());
 
+  // Nothing resizes the window programmatically any more, so every change here
+  // is the user's. Debounced: a drag fires resize continuously.
+  let rememberTimer = null;
   const remember = () => {
-    if (!win || win.isDestroyed() || win.isMinimized()) return;
-    const [w, h] = win.getSize();
-    saveState({ windowWidth: w, windowHeight: h });
+    if (!win || win.isDestroyed()) return;
+    if (win.isMinimized() || win.isFullScreen() || win.isMaximized()) return;
+    saveState({ windowBounds: win.getBounds() });
   };
-  win.on('resize', remember);
-  win.on('close', remember);
+  const rememberSoon = () => {
+    clearTimeout(rememberTimer);
+    rememberTimer = setTimeout(remember, 400);
+  };
+  win.on('resize', rememberSoon);
+  win.on('move', rememberSoon);
+  win.on('close', () => { clearTimeout(rememberTimer); remember(); });
   win.on('closed', () => { win = null; });
 
   buildMenu(() => win);
@@ -205,6 +297,7 @@ ipcMain.handle('state:get', () => ({
   userAgents: USER_AGENTS,
   systemDark: nativeTheme.shouldUseDarkColors,
   appName: APP_NAME,
+  version: app.getVersion(),
 }));
 
 ipcMain.handle('state:set', (_e, patch) => saveState(patch));
@@ -306,18 +399,20 @@ ipcMain.handle('screenshot', async (_e, wcId, meta = {}) => {
   }
 });
 
-ipcMain.handle('window:fit', (_e, contentWidth, contentHeight) => {
-  if (!win || win.isDestroyed() || win.isFullScreen()) return;
-  const area = screen.getDisplayMatching(win.getBounds()).workAreaSize;
-  // no animate: animated resizes are unreliable when the window isn't frontmost
-  win.setContentSize(
-    Math.max(580, Math.min(Math.round(contentWidth), area.width - 40)),
-    Math.max(500, Math.min(Math.round(contentHeight), area.height - 20)),
-  );
+ipcMain.handle('reveal', (_e, filePath) => shell.showItemInFolder(filePath));
+ipcMain.handle('open-external', (_e, url) => {
+  // only ever web links — this is reachable from the renderer
+  if (/^https?:\/\//i.test(String(url))) return shell.openExternal(url);
 });
 
-ipcMain.handle('reveal', (_e, filePath) => shell.showItemInFolder(filePath));
-ipcMain.handle('open-external', (_e, url) => shell.openExternal(url));
+// Start at Login. The OS owns this setting (System Settings › General › Login
+// Items shows and can change it too), so it's read back from there every time
+// rather than mirrored in state.json, where the two could disagree.
+ipcMain.handle('login:get', () => app.getLoginItemSettings().openAtLogin);
+ipcMain.handle('login:set', (_e, on) => {
+  app.setLoginItemSettings({ openAtLogin: Boolean(on) });
+  return app.getLoginItemSettings().openAtLogin;
+});
 
 /* ------------------------------------------------------------ web contents */
 
@@ -330,7 +425,11 @@ app.on('web-contents-created', (_e, contents) => {
     return { action: 'deny' };
   });
 
-  contents.on('destroyed', () => attached.delete(contents.id));
+  contents.on('destroyed', () => {
+    attached.delete(contents.id);
+    touchForMouse.delete(contents.id);
+    pageRects.delete(contents.id);
+  });
 });
 
 // Local dev servers with self-signed certs are the whole point of this app.
