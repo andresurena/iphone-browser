@@ -36,12 +36,16 @@ npm start
 To get an actual app you can keep in your Dock:
 
 ```bash
-npm run dist
+npm run install-app
 ```
 
-That writes `iPhone Browser.app` into `dist/mac-universal/` — drag it to
-/Applications. Building it yourself means macOS treats it as a local app and
-opens it without any Gatekeeper complaints.
+That builds it and puts `iPhone Browser.app` in /Applications, quitting and
+replacing any copy already there — so the same command is also how you update
+it after pulling changes. Building it yourself means macOS treats it as a local
+app and opens it without any Gatekeeper complaints.
+
+`npm run dist` builds without installing, leaving the app in
+`dist/mac-universal/`.
 
 ## What it emulates
 

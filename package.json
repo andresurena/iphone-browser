@@ -14,6 +14,7 @@
     "icon": "electron scripts/make-icon.js",
     "build": "electron-builder --mac --universal",
     "dist": "npm run icon && npm run build",
+    "install-app": "npm run dist && sh scripts/install-app.sh",
     "spike": "electron-builder --mac mas-dev -c.appId=com.andresurena.responsivephonebrowser -c.productName=\"Responsive Phone Browser\"",
     "mas": "npm run icon && electron-builder --mac mas -c.appId=com.andresurena.responsivephonebrowser -c.productName=\"Responsive Phone Browser\""
   },
