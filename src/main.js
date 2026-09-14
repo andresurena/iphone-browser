@@ -399,6 +399,25 @@ ipcMain.handle('screenshot', async (_e, wcId, meta = {}) => {
   }
 });
 
+// A picture of a page as it currently stands, for the half of a folded display
+// that's turned away (see renderPose in duo.js). Taken from the compositor
+// rather than through CDP: it's cheap enough to repeat every second or so, and
+// it sidesteps the dpr=3 capture bug entirely. Shrunk and JPEG'd because it
+// crosses to the renderer as a data URL and will be blurred anyway.
+ipcMain.handle('capture-page', async (_e, wcId, maxWidth) => {
+  const wc = webContents.fromId(wcId);
+  if (!wc || wc.isDestroyed()) return null;
+  try {
+    let img = await wc.capturePage();
+    const { width } = img.getSize();
+    if (maxWidth && width > maxWidth) img = img.resize({ width: Math.round(maxWidth) });
+    return `data:image/jpeg;base64,${img.toJPEG(72).toString('base64')}`;
+  } catch (err) {
+    console.warn('[capture-page]', err.message);
+    return null;
+  }
+});
+
 ipcMain.handle('reveal', (_e, filePath) => shell.showItemInFolder(filePath));
 ipcMain.handle('open-external', (_e, url) => {
   // only ever web links — this is reachable from the renderer

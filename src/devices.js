@@ -100,6 +100,38 @@ const IPHONE_DUO = {
       of: 'inner',
       split: 'trailing',
     },
+
+    // Poses — Beta. The device drawn in three dimensions the way Apple's
+    // "device poses" diagram shows it held or set down. Each pose fixes the
+    // orientation, because the hinge is what makes it: a book stands on its
+    // long edge, a laptop on its short one. The page is emulated exactly as on
+    // the flat display underneath — Safari has no fold-detection API, so this
+    // is what a site would actually get. Beta because Apple has published no
+    // guidance for web content in any pose; see POSES in shell/duo.js.
+    {
+      id: 'pose-book',
+      name: 'Book, half open',
+      of: 'inner',
+      pose: 'book',
+      orientation: 'landscape',
+      beta: true,
+    },
+    {
+      id: 'pose-laptop',
+      name: 'Laptop, on a surface',
+      of: 'inner',
+      pose: 'laptop',
+      orientation: 'portrait',
+      beta: true,
+    },
+    {
+      id: 'pose-tent',
+      name: 'Tent, standing',
+      of: 'outer',
+      pose: 'tent',
+      orientation: 'landscape',
+      beta: true,
+    },
   ],
 };
 

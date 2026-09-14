@@ -1225,3 +1225,96 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
   font: 600 14px -apple-system, system-ui, sans-serif;
 }
 .duo-corner { position: absolute; pointer-events: none; }
+
+/* ================================================= poses — see duo.js POSES
+   #pose and #liveHalf do nothing until a pose is on: plain blocks the frame
+   sits in. In a pose, #pose is the perspective stage, #liveHalf clips and
+   tilts the frame, and #awayHalf stands in for the half turned away. */
+#pose { position: relative; }
+#liveHalf { position: relative; }
+
+#phone.posed #pose { transform-style: preserve-3d; }
+#phone.posed #liveHalf {
+  position: absolute;
+  overflow: hidden;
+  /* the same tilt for the frame and its picture, or a page would lean while
+     its other half stood still */
+  backface-visibility: hidden;
+}
+#phone.posed .homebar { display: none; }   /* it straddles the hinge, or is copied to the base */
+
+#awayHalf {
+  position: absolute;
+  overflow: hidden;
+  /* the device's shell: the same titanium as .frame */
+  background:
+    linear-gradient(148deg,
+      #7d7a76 0%, #34322f 9%, #56534e 20%, #23211f 34%,
+      #45423e 50%, #201e1c 66%, #5c5955 80%, #2b2926 92%, #6e6b67 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, .10) inset,
+    0 1px 2px rgba(255, 255, 255, .22) inset,
+    0 0 0 1px rgba(0, 0, 0, .55);
+  backface-visibility: hidden;
+}
+.pose-clip { position: absolute; overflow: hidden; background: #000; }
+.pose-screen { position: absolute; }
+.pose-snap {
+  position: absolute;
+  display: block;
+  object-fit: fill;
+  /* the half you're not looking at: softened a touch, as the eye would */
+  filter: blur(var(--pose-blur, 2.5px)) saturate(.92);
+  background: #fff;
+}
+.pose-copy { pointer-events: none !important; }
+/* depth: the far side of a turned half sits in a little shade */
+.pose-shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(0, 0, 0, .28), rgba(0, 0, 0, .04) 60%, transparent);
+}
+#phone[data-pose="laptop"] .pose-shade {
+  background: linear-gradient(180deg, rgba(0, 0, 0, .06), rgba(0, 0, 0, .22));
+}
+/* a tent's away half is the back of the device — glass over the camera plateau */
+#phone[data-pose="tent"] #awayHalf {
+  background:
+    radial-gradient(60% 50% at 30% 30%, rgba(255, 255, 255, .10), transparent 60%),
+    linear-gradient(160deg, #3a3835, #1b1a18 55%, #2a2825);
+}
+.pose-back { position: absolute; inset: 0; }
+
+/* what the device stands on, and the light the inner display throws on it */
+#poseShadow {
+  position: absolute;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .45);
+  filter: blur(18px);
+  transform: translateZ(-1px);
+  pointer-events: none;
+}
+#poseGlow {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--bar-solid, #fff);
+  opacity: .55;
+  filter: blur(46px) saturate(1.3);
+  transform: translateZ(-2px);
+  pointer-events: none;
+}
+#phone.posed { filter: drop-shadow(0 26px 40px rgba(0, 0, 0, .4)); }
+
+/* entering or leaving a pose morphs like any other switch */
+#phone.morphing #liveHalf,
+#phone.morphing #awayHalf,
+#phone.morphing #pose {
+  transition:
+    transform var(--morph) var(--morph-ease),
+    width var(--morph) var(--morph-ease),
+    height var(--morph) var(--morph-ease),
+    left var(--morph) var(--morph-ease),
+    top var(--morph) var(--morph-ease);
+}

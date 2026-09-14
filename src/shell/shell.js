@@ -291,7 +291,10 @@ function renderTabCounts() {
    through barGeometry(), foldable displays with a vertical rail through
    duoPanes() in duo.js. */
 function geometry() {
-  const landscape = S.orientation === 'landscape';
+  // a pose fixes the orientation: the hinge is what makes it a book or a laptop
+  const landscape = device.orientation
+    ? device.orientation === 'landscape'
+    : S.orientation === 'landscape';
   const w = landscape ? device.height : device.width;
   const h = landscape ? device.width : device.height;
 
@@ -301,7 +304,7 @@ function geometry() {
     h,
     corners: screenCorners(landscape),
     hinge: hingeEdge(landscape),
-    crease: creaseOf(w, h, landscape),
+    crease: device.pose ? null : creaseOf(w, h, landscape),
     camera: null,
   };
 
@@ -416,19 +419,27 @@ function layout() {
 
   placeWebviews(g);
   renderDuo(g);
+  renderPose(g);
 
-  // fit-to-window or a fixed percentage
+  // fit-to-window or a fixed percentage; a posed device projects bigger than
+  // its flat footprint, so it's fitted to what it will actually take up
+  const extent = poseExtent(g);
   const bodyW = g.w + device.bezel * 2;
   const bodyH = g.h + device.bezel * 2;
+  const fitW = extent ? extent.w : bodyW;
+  const fitH = extent ? extent.h : bodyH;
   const scale = S.zoom === 'fit'
     ? Math.max(0.2, Math.min(1,
-        (stage.clientWidth - 40) / bodyW,
-        (stage.clientHeight - 48) / bodyH))
+        (stage.clientWidth - 40) / fitW,
+        (stage.clientHeight - 48) / fitH))
     : Number(S.zoom);
 
   phone.style.transform = `scale(${scale})`;
-  scaler.style.width = `${Math.round(bodyW * scale)}px`;
-  scaler.style.height = `${Math.round(bodyH * scale)}px`;
+  scaler.style.width = `${Math.round(fitW * scale)}px`;
+  scaler.style.height = `${Math.round(fitH * scale)}px`;
+  // centre the flat frame inside the (larger) posed footprint
+  phone.style.left = `${Math.round((fitW - bodyW) / 2 * scale)}px`;
+  phone.style.top = `${Math.round((fitH - bodyH) / 2 * scale)}px`;
 
   paintChrome();
   paintMenus();
@@ -465,7 +476,14 @@ function reportPageRects() {
     .map((t) => {
       let wcId;
       try { wcId = t.el.getWebContentsId(); } catch { return null; }   // guest not created yet
-      const r = t.el.getBoundingClientRect();
+      let r = t.el.getBoundingClientRect();
+      if (device.pose) {
+        // the half turned away is clipped out — only the live half is a page
+        const l = $('liveHalf').getBoundingClientRect();
+        const x1 = Math.max(r.left, l.left); const y1 = Math.max(r.top, l.top);
+        const x2 = Math.min(r.right, l.right); const y2 = Math.min(r.bottom, l.bottom);
+        r = { left: x1, top: y1, width: Math.max(0, x2 - x1), height: Math.max(0, y2 - y1) };
+      }
       return { wcId, x: r.left, y: r.top, width: r.width, height: r.height };
     })
     .filter(Boolean);
@@ -641,13 +659,16 @@ function bindMenus() {
 
   bindMenu($('displayMenu'), () => {
     const landscape = S.orientation === 'landscape';
+    const item = (d) => ({ value: d.id, label: displayLabel(d, landscape) });
+    const plain = deviceEntry.displays.filter((d) => !d.pose);
+    const poses = deviceEntry.displays.filter((d) => d.pose);
     return {
-      // Outer is the plainest, so it sits nearest the button
-      sections: [{
-        label: deviceEntry.name,
-        items: [...deviceEntry.displays].reverse()
-          .map((d) => ({ value: d.id, label: displayLabel(d, landscape) })),
-      }],
+      // Outer is the plainest, so it sits nearest the button; poses, being the
+      // most involved, go furthest from it
+      sections: [
+        { label: 'Poses · Beta', items: [...poses].reverse().map(item) },
+        { label: deviceEntry.name, items: [...plain].reverse().map(item) },
+      ],
       value: device.displayId,
       onPick: pickDisplay,
     };
@@ -691,6 +712,8 @@ function paintMenus() {
   $('displayMenu').hidden = !display;
   if (display) label('displayMenu', displayLabel(display, S.orientation === 'landscape'));
   label('browserMenu', browser.name);
+  $('rotate').disabled = Boolean(device.orientation);
+  $('rotate').title = device.orientation ? 'This pose has a fixed orientation' : 'Rotate (⌘⌃R)';
   label('uaMenu', uaById(S.userAgentId).name);
   label('zoomMenu', (ZOOMS.find((z) => z.value === S.zoom) || ZOOMS[0]).label);
 }
@@ -847,6 +870,7 @@ function wireUI() {
 }
 
 function rotate() {
+  if (device.orientation) { toast('This pose has a fixed orientation — pick another display to rotate.'); return; }
   set({ orientation: S.orientation === 'portrait' ? 'landscape' : 'portrait' });
 }
 
@@ -889,6 +913,20 @@ function attachWebviewListeners(el, tabId) {
     if (tabId !== activeTabId) return;
     $('spinner').hidden = true;
     sampleTheme(el);
+    if (device.pose) setTimeout(refreshPoseSnapshot, 150);
+  });
+
+  // A page can't call the shell, but it can log — so a throttled scroll
+  // listener logs a marker, and the picture of the turned-away half follows.
+  el.addEventListener('dom-ready', () => {
+    el.executeJavaScript(`(() => {
+      if (window.__ibScrollHooked) return; window.__ibScrollHooked = true;
+      let t = 0;
+      addEventListener('scroll', () => { const n = Date.now(); if (n - t > 400) { t = n; console.log('__ib_scrolled'); } }, { passive: true, capture: true });
+    })()`).catch(() => {});
+  });
+  el.addEventListener('console-message', (e) => {
+    if (e.message === '__ib_scrolled' && device.pose && tabId === activeTabId) refreshPoseSnapshot();
   });
 
   const onNav = () => {

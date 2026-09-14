@@ -57,6 +57,14 @@
         <span class="btn power"></span>
         <span class="btn camera"></span>
 
+        <!-- #pose and #liveHalf are inert wrappers until a foldable is put in a
+             pose (see renderPose in duo.js): then #pose is the perspective
+             stage, #liveHalf clips the frame to the half you're looking at and
+             tilts it, and the other half is drawn in #awayHalf. They're in the
+             markup permanently because a <webview> reloads if it's ever moved
+             in the DOM, and the frame holds every webview. -->
+        <div id="pose">
+          <div id="liveHalf">
         <div class="frame">
           <div class="screen">
 
@@ -246,6 +254,16 @@
 
           </div>
         </div>
+          </div><!-- /liveHalf -->
+
+          <!-- the half turned away from you, or a tent's back: built by
+               renderPose(). Shows a picture of that half of the page, refreshed
+               as the page changes, plus copies of any browser bars drawn there. -->
+          <div id="awayHalf" hidden></div>
+          <!-- what the device rests on and the light the inner display throws -->
+          <div id="poseGlow" hidden></div>
+          <div id="poseShadow" hidden></div>
+        </div><!-- /pose -->
       </div>
     </div>
 

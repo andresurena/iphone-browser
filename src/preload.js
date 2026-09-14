@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('bridge', {
   toggleDevTools: (wcId) => ipcRenderer.invoke('devtools:toggle', wcId),
   screenshot: (wcId, meta) => ipcRenderer.invoke('screenshot', wcId, meta),
   captureTile: (wcId) => ipcRenderer.invoke('capture-tile', wcId),
+  capturePage: (wcId, maxWidth) => ipcRenderer.invoke('capture-page', wcId, maxWidth),
   reveal: (filePath) => ipcRenderer.invoke('reveal', filePath),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   reportPageRects: (rects) => ipcRenderer.send('pages:rects', rects),

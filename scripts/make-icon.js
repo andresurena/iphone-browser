@@ -33,54 +33,44 @@ const markup = `
     width: 1024px; height: 1024px;
     display: grid; place-items: center;
   }
+  /* graphite body, the way most developer tools sit in a Dock */
   .squircle {
-    width: 840px; height: 840px;
-    border-radius: 190px;
-    background: linear-gradient(160deg, #3a3a44 0%, #191920 55%, #0d0d12 100%);
-    box-shadow:
-      0 0 0 6px rgba(255,255,255,.06) inset,
-      0 24px 60px rgba(0,0,0,.45);
-    display: grid; place-items: center;
-  }
-  .phone {
-    width: 330px; height: 620px;
-    border-radius: 78px;
-    background: #ffffff;
-    padding: 13px;
-    box-shadow: 0 10px 40px rgba(0,0,0,.5);
-  }
-  .screen {
-    width: 100%; height: 100%;
-    border-radius: 66px;
-    background: linear-gradient(180deg, #0a84ff 0%, #0a63d6 100%);
+    width: 824px; height: 824px;
+    border-radius: 185px;
     position: relative;
     overflow: hidden;
+    background:
+      radial-gradient(120% 90% at 30% 10%, rgba(255,255,255,.09), transparent 55%),
+      linear-gradient(160deg, #3d3d45 0%, #25252b 52%, #151519 100%);
+    box-shadow:
+      0 0 0 6px rgba(255,255,255,.05) inset,
+      0 1px 0 rgba(255,255,255,.12) inset,
+      0 24px 60px rgba(0,0,0,.45);
   }
-  .island {
-    position: absolute; left: 50%; top: 18px;
-    transform: translateX(-50%);
-    width: 108px; height: 32px;
-    border-radius: 99px; background: #101014;
+  /* Two viewports — a tall one and a wide one — overlapping off-centre: one
+     page, two very different screens. Their shared area gets its own tone. */
+  .panel { position: absolute; border-radius: 42px; }
+  .tall {
+    left: 132px; top: 150px; width: 300px; height: 480px;
+    background: linear-gradient(170deg, #f4f5f9, #dfe1e8);
+    box-shadow: 0 18px 40px rgba(0,0,0,.35);
   }
-  .line { position: absolute; left: 34px; height: 16px; border-radius: 9px; background: rgba(255,255,255,.9); }
-  .l1 { top: 150px; width: 210px; }
-  .l2 { top: 196px; width: 150px; opacity: .75; }
-  .card { position: absolute; left: 34px; top: 250px; width: 236px; height: 150px; border-radius: 26px; background: rgba(255,255,255,.28); }
-  .l3 { top: 430px; width: 236px; opacity: .6; }
-  .l4 { top: 476px; width: 170px; opacity: .45; }
+  .wide {
+    left: 282px; top: 400px; width: 420px; height: 290px;
+    background: linear-gradient(160deg, #ff5f95 0%, #f2296f 60%, #d91c5f 100%);
+    box-shadow: 0 18px 44px rgba(233, 38, 108, .40), 0 2px 0 rgba(255,255,255,.18) inset;
+  }
+  .both {
+    left: 282px; top: 400px; width: 150px; height: 230px;
+    border-radius: 42px 0 42px 0;
+    background: linear-gradient(160deg, #ffd6e3, #ffb7cd);
+  }
 </style>
 <div class="icon">
   <div class="squircle">
-    <div class="phone">
-      <div class="screen">
-        <div class="island"></div>
-        <div class="line l1"></div>
-        <div class="line l2"></div>
-        <div class="card"></div>
-        <div class="line l3"></div>
-        <div class="line l4"></div>
-      </div>
-    </div>
+    <div class="panel tall"></div>
+    <div class="panel wide"></div>
+    <div class="panel both"></div>
   </div>
 </div>`;
 

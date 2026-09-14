@@ -425,3 +425,217 @@ function renderDuo(g) {
   renderTabCounts();
   syncNav();
 }
+
+/* ================================================================= poses
+   Beta. The device in three dimensions, the way Apple's "device poses" diagram
+   shows it held or set down. Nothing about the page changes — it's emulated
+   exactly as on the flat display underneath, which is genuinely what a site
+   gets, since Safari has no fold-detection API.
+
+   How it's drawn: the whole flat phone is still laid out as normal inside
+   #liveHalf, which clips it to the half you're looking at and tilts it in
+   perspective. The other half — #awayHalf — is a picture of that part of the
+   page taken from the compositor, refreshed as the page changes, with copies of
+   any browser bars that live down there laid over it. A tent shows the whole
+   outer display and hangs the device's back off the top edge instead.
+
+   The angles are chosen to match Apple's poses illustration and the Netflix
+   and alarm-clock examples of the laptop and tent poses; Apple hasn't published
+   anything about web content in any pose, hence the Beta label. */
+
+/* CSS rotation signs, since they're easy to get backwards: rotateX(+θ) brings
+   whatever is BELOW the axis toward you; rotateY(+θ) brings whatever is LEFT
+   of the axis toward you. Each panel rotates about its hinge edge.
+   `extent` is how the projected device compares to its flat footprint, for
+   zoom-to-fit; `shadowAt` is where its lowest edge lands, as a share of H. */
+const POSES = {
+  // hinge vertical; the page on the right half, nearly flat; the left half
+  // swings toward you, the way the demo of the fold animation holds it
+  book:   { live: 'right', liveTilt: 'rotateY(-10deg)', awayTilt: 'rotateY(40deg)',
+            perspective: 1500, extent: { w: 0.94, h: 1.26 }, shadowAt: 1 },
+  // hinge horizontal; the page on the top half leaning back like a laptop
+  // screen; the base lies flat toward you, seen from a little above
+  laptop: { live: 'top',   liveTilt: 'rotateX(10deg)',  awayTilt: 'rotateX(62deg)',
+            perspective: 2200, extent: { w: 1.24, h: 0.88 }, shadowAt: 0.77 },
+  // an A-frame: the outer display leans back from its base, the other half
+  // drops away behind it, peeking out one side; both hang from the hinge on top
+  tent:   { live: 'all',   liveTilt: 'rotateX(14deg)',  awayTilt: 'rotateX(-40deg) translateX(18px)',
+            perspective: 1600, extent: { w: 1.1, h: 1.04 }, shadowAt: 0.985 },
+};
+
+// Skins that sit at the foot of the screen and so land on a laptop's base.
+const FOOT_SKINS = ['uiSafariGlass', 'uiChromeIosBottom', 'uiVivaldi', 'uiChromeNav', 'homebar'];
+
+let poseKey = '';
+let poseSnapTimer = null;
+
+/** How much bigger than the flat device the posed one can project, for zoom-to-fit. */
+function poseExtent(g) {
+  if (!device.pose) return null;
+  const b = device.bezel;
+  const { extent } = POSES[device.pose];
+  return { w: (g.w + b * 2) * extent.w, h: (g.h + b * 2) * extent.h };
+}
+
+/**
+ * Draw the pose — or, if there isn't one, put the wrappers back to being inert.
+ * Only rebuilt when the geometry changes; the snapshot refreshes on its own.
+ */
+function renderPose(g) {
+  const pose = device.pose ? POSES[device.pose] : null;
+  const stage = $('pose');
+  const live = $('liveHalf');
+  const away = $('awayHalf');
+  const glow = $('poseGlow');
+  const shadow = $('poseShadow');
+  const frame = phone.querySelector('.frame');
+
+  if (!pose) {
+    if (!poseKey) return;
+    poseKey = '';
+    phone.classList.remove('posed');
+    phone.removeAttribute('data-pose');
+    stage.removeAttribute('style');
+    live.removeAttribute('style');
+    frame.style.transform = '';
+    away.hidden = true;
+    away.innerHTML = '';
+    glow.hidden = true;
+    shadow.hidden = true;
+    stopPoseSnapshots();
+    return;
+  }
+
+  const key = JSON.stringify([device.pose, g.w, g.h, g.corners, S.showChrome, browser.id, activeTabId]);
+  if (key === poseKey) return;
+  poseKey = key;
+
+  const b = device.bezel;
+  const W = g.w + b * 2;   // the flat frame, outside edge to outside edge
+  const H = g.h + b * 2;
+  const [tl, tr, br, bl] = g.corners;
+  const px = (...v) => v.map((n) => `${n}px`).join(' ');
+
+  phone.classList.add('posed');
+  phone.dataset.pose = device.pose;
+  Object.assign(stage.style, { width: `${W}px`, height: `${H}px`, perspective: `${pose.perspective}px` });
+
+  if (pose.live === 'right') {
+    // live: the frame's right half, from the hinge to its right bezel
+    const halfW = g.w / 2 + b;
+    Object.assign(live.style, {
+      left: `${g.w / 2 + b}px`, top: '0', width: `${halfW}px`, height: `${H}px`,
+      transformOrigin: 'left center', transform: pose.liveTilt,
+    });
+    frame.style.transform = `translateX(${-(g.w / 2 + b)}px)`;
+    // away: the left half, its outer corners the device's, square at the hinge
+    Object.assign(away.style, {
+      left: '0', top: '0', width: `${halfW}px`, height: `${H}px`,
+      borderRadius: px(tl + b, 0, 0, bl + b),
+      transformOrigin: 'right center', transform: pose.awayTilt,
+    });
+    away.innerHTML = awayScreenMarkup(g, { left: b, top: b, width: g.w / 2, height: g.h, shiftX: 0, shiftY: 0,
+      radii: [tl, 0, 0, bl], foot: false });
+  } else if (pose.live === 'top') {
+    const halfH = g.h / 2 + b;
+    Object.assign(live.style, {
+      left: '0', top: '0', width: `${W}px`, height: `${halfH}px`,
+      transformOrigin: 'center bottom', transform: pose.liveTilt,
+    });
+    frame.style.transform = '';
+    Object.assign(away.style, {
+      left: '0', top: `${g.h / 2 + b}px`, width: `${W}px`, height: `${halfH}px`,
+      borderRadius: px(0, 0, br + b, bl + b),
+      transformOrigin: 'center top', transform: pose.awayTilt,
+    });
+    away.innerHTML = awayScreenMarkup(g, { left: b, top: 0, width: g.w, height: g.h / 2, shiftX: 0, shiftY: -g.h / 2,
+      radii: [0, 0, br, bl], foot: true });
+  } else {
+    // tent: the whole outer display, hanging from the hinge along its top edge
+    Object.assign(live.style, {
+      left: '0', top: '0', width: `${W}px`, height: `${H}px`,
+      transformOrigin: 'center top', transform: pose.liveTilt,
+    });
+    frame.style.transform = '';
+    Object.assign(away.style, {
+      left: '0', top: '0', width: `${W}px`, height: `${H}px`,
+      borderRadius: px(tl + b, tr + b, br + b, bl + b),
+      transformOrigin: 'center top', transform: pose.awayTilt,
+    });
+    away.innerHTML = '<div class="pose-back"></div>';
+  }
+  away.hidden = false;
+
+  // a tent's inner display faces the surface it stands on and lights it — in
+  // the page's own colour, the way the alarm clock's orange spills out
+  glow.hidden = device.pose !== 'tent';
+  shadow.hidden = false;
+  Object.assign(shadow.style, { width: `${W * 1.1}px`, left: `${-W * 0.05}px`, top: `${H * pose.shadowAt - 14}px` });
+  Object.assign(glow.style, { width: `${W * 1.5}px`, left: `${-W * 0.25}px`, top: `${H * 0.55}px`, height: `${H * 0.7}px` });
+
+  if (pose.live === 'all') { stopPoseSnapshots(); return; }
+  // the page is re-emulated to this display just after this runs, so the first
+  // picture waits for that to land; a second catches a slow reflow
+  startPoseSnapshots();
+  setTimeout(refreshPoseSnapshot, 500);
+  setTimeout(refreshPoseSnapshot, 1400);
+}
+
+/**
+ * The away half's contents: a full-size copy of the screen, shifted so the right
+ * part shows through the clip, holding the page picture at the page's position
+ * and, on a laptop base, copies of the browser bars drawn at the foot.
+ */
+function awayScreenMarkup(g, { left, top, width, height, shiftX, shiftY, radii, foot }) {
+  const page = g.page;
+  const r = radii.map((v) => `${v}px`).join(' ');
+  let clones = '';
+  if (foot) {
+    for (const id of FOOT_SKINS) {
+      const el = $(id);
+      if (!el || (el.classList.contains('ui') && !el.classList.contains('on'))) continue;
+      const copy = el.cloneNode(true);
+      copy.removeAttribute('id');
+      copy.classList.add('pose-copy');
+      clones += copy.outerHTML;
+    }
+  }
+  return `
+    <div class="pose-clip" style="left:${left}px; top:${top}px; width:${width}px; height:${height}px; border-radius:${r}">
+      <div class="pose-screen" style="left:${shiftX}px; top:${shiftY}px; width:${g.w}px; height:${g.h}px">
+        <img class="pose-snap" alt="" style="left:${page.x + page.left}px; top:${page.y + page.top}px;
+          width:${page.viewW}px; height:${page.viewH}px">
+        ${clones}
+      </div>
+      <div class="pose-shade"></div>
+    </div>`;
+}
+
+function startPoseSnapshots() {
+  if (poseSnapTimer) return;
+  // slow, because most of what changes on a page is a scroll or a load, and
+  // both trigger a refresh of their own (see attachWebviewListeners)
+  poseSnapTimer = setInterval(refreshPoseSnapshot, 2500);
+}
+
+function stopPoseSnapshots() {
+  clearInterval(poseSnapTimer);
+  poseSnapTimer = null;
+}
+
+let poseSnapBusy = false;
+async function refreshPoseSnapshot() {
+  const img = $('awayHalf').querySelector('.pose-snap');
+  const el = activeWv();
+  if (!img || !el || poseSnapBusy || document.hidden) return;
+  let wcId;
+  try { wcId = el.getWebContentsId(); } catch { return; }
+  poseSnapBusy = true;
+  try {
+    // roughly the on-screen size: the picture is blurred, so no more is needed
+    const url = await window.bridge.capturePage(wcId, Math.round(img.clientWidth * 1.5) || 900);
+    if (url && img.isConnected) img.src = url;
+  } finally {
+    poseSnapBusy = false;
+  }
+}

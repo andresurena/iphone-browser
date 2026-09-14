@@ -180,6 +180,19 @@ you're working in; neither page moves. Each app keeps its controls on its own
 outer edge, so the left app's rail is on the left. **Partially folded** shows
 where the crease lands on your layout.
 
+**Poses · Beta** — the same displays drawn in three dimensions, the way
+Apple's device-poses diagram shows the phone held or set down: *Book, half
+open* (the left half swung toward you), *Laptop, on a surface* (the top half
+leaning back, the base lying flat, as Netflix uses it for playback controls)
+and *Tent, standing* (the outer display leaning back on an A-frame, the inner
+display lighting the surface in the page's own colour, as the alarm clock
+does). The half you're looking at is the live page — you can still scroll and
+click it — and the half turned away is a picture of the page that refreshes as
+it scrolls and loads. Nothing about the emulation changes in a pose: a site
+gets exactly what it gets on the flat display, because Safari gives it no way
+to know the phone is folded. Beta because Apple has published nothing about
+web content in any pose; the angles are matched to its illustrations.
+
 Two caveats. Safari ships **no fold-detection API** — CSS Viewport Segments
 (`env(viewport-segment-*)`) is Chromium-only — so a page can't tell folded from
 flat, which is why the crease is only drawn, never reported. And the device isn't
