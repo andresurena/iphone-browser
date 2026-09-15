@@ -441,25 +441,27 @@ function layout() {
   renderDuo(g);
   renderPose(g);
 
-  // fit-to-window or a fixed percentage; a posed device projects bigger than
-  // its flat footprint, so it's fitted to what it will actually take up
-  const extent = poseExtent(g);
+  // fit-to-window or a fixed percentage. A posed device is fitted to the box
+  // it actually projects to, measured, and shifted so that box — not the flat
+  // frame it started as — is what gets centred.
+  const bounds = poseBounds();
   const bodyW = g.w + bz.l + bz.r;
   const bodyH = g.h + bz.t + bz.b;
-  const fitW = extent ? extent.w : bodyW;
-  const fitH = extent ? extent.h : bodyH;
+  const fitW = bounds ? bounds.w : bodyW;
+  const fitH = bounds ? bounds.h : bodyH;
+  const reserve = $('poseAction').hidden ? 0 : 52;   // room for the laptop's button
   const scale = S.zoom === 'fit'
     ? Math.max(0.2, Math.min(1,
         (stage.clientWidth - 40) / fitW,
-        (stage.clientHeight - 48) / fitH))
+        (stage.clientHeight - 48 - reserve) / fitH))
     : Number(S.zoom);
 
   phone.style.transform = `scale(${scale})`;
   scaler.style.width = `${Math.round(fitW * scale)}px`;
   scaler.style.height = `${Math.round(fitH * scale)}px`;
-  // centre the flat frame inside the (larger) posed footprint
-  phone.style.left = `${Math.round((fitW - bodyW) / 2 * scale)}px`;
-  phone.style.top = `${Math.round((fitH - bodyH) / 2 * scale)}px`;
+  phone.style.left = `${Math.round(-(bounds ? bounds.minX : 0) * scale)}px`;
+  phone.style.top = `${Math.round(-(bounds ? bounds.minY : 0) * scale)}px`;
+  placePoseAction(Math.round(fitH * scale), reserve);
 
   paintChrome();
   paintMenus();

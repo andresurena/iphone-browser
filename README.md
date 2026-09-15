@@ -201,7 +201,7 @@ where the crease lands on your layout.
 
 **Poses · Beta** — the same displays drawn in three dimensions, the way
 Apple's device-poses diagram shows the phone held or set down: *Book, half
-open* (the left half swung toward you), *Laptop, on a surface* (the top half
+open* (the left half swung toward you), *Book, beside another app* (your site on the right half, a stand-in app blurred on the left), *Laptop, on a surface* (the top half
 leaning back, the base lying flat, as Netflix uses it for playback controls)
 and *Tent, standing* (the outer display leaning back on an A-frame, the inner
 display lighting the surface in the page's own colour, as the alarm clock

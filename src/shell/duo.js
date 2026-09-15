@@ -252,16 +252,20 @@ function duoPanes(w, h, landscape) {
   let trailing;
   let divider;
   if (landscape) {
-    const pw = (w - gap) / 2;
+    // whole points: the emulation protocol rejects a fractional viewport, and
+    // 951 − 16 doesn't halve evenly — the divider takes the odd point
+    const pw = Math.floor((w - gap) / 2);
+    const gapW = w - pw * 2;
     leading = { ...railPane({ x: 0, y: 0, w: pw, h }, 'left', { status: false }), radii: [0, r, r, 0] };
-    trailing = { ...railPane({ x: pw + gap, y: 0, w: pw, h }, 'right', { status: true }), radii: [r, 0, 0, r] };
-    divider = { x: pw, y: 0, w: gap, h, axis: 'vertical' };
+    trailing = { ...railPane({ x: pw + gapW, y: 0, w: pw, h }, 'right', { status: true }), radii: [r, 0, 0, r] };
+    divider = { x: pw, y: 0, w: gapW, h, axis: 'vertical' };
   } else {
-    // stacked: horizontal bars in both, the status on the top one. A video on
+    // stacked: horizontal bars in both, and no status pill — on the device it's
+    // a glass capsule that fades away, so drawing it just misleads. A video on
     // top takes a quarter and the app below runs on past the fold.
     const ratio = device.splitRatio || 0.5;
     const ph = Math.round((h - gap) * ratio);
-    leading = { ...topPane({ x: 0, y: 0, w, h: ph }, { status: true, foot: false }), radii: [0, 0, r, r] };
+    leading = { ...topPane({ x: 0, y: 0, w, h: ph }, { status: false, foot: false }), radii: [0, 0, r, r] };
     trailing = { ...topPane({ x: 0, y: ph + gap, w, h: h - gap - ph }, { status: false, foot: true }), radii: [r, r, 0, 0] };
     divider = { x: 0, y: ph, w, h: gap, axis: 'horizontal' };
   }
@@ -279,7 +283,7 @@ function duoPanes(w, h, landscape) {
 let splitOtherId = null;
 
 function otherTabId() {
-  if (!device?.split) return null;
+  if (!device?.split || device.placeholderOther) return null;
   if (splitOtherId !== activeTabId && tabById(splitOtherId)) return splitOtherId;
   splitOtherId = tabs.find((t) => t.id !== activeTabId)?.id ?? null;
   return splitOtherId;
@@ -493,6 +497,11 @@ function renderDuo(g) {
       const tabId = pane.slot === 'page' ? activeTabId : otherId;
       under += `<div class="duo-pane" style="left:${pane.x}px; top:${pane.y}px;
         width:${pane.w}px; height:${pane.h}px; border-radius:${px(pane.radii)}"></div>`;
+      // a stand-in app, with nothing of ours drawn over it
+      if (pane.slot === 'other' && device.placeholderOther) {
+        over += placeholderAppMarkup(pane) + cornerMasks(pane);
+        continue;
+      }
       // the prompt goes under the bars, which float over the whole pane
       if (pane.slot === 'other' && otherId == null) {
         over += `<div class="duo-empty" style="left:${pane.x + pane.left}px; top:${pane.y}px;
@@ -504,8 +513,11 @@ function renderDuo(g) {
       over += pane.edge ? railMarkup(pane, tabId) : topBarMarkup(pane, tabId);
       if (pane.edge && S.showChrome && tabId != null && browser.id === 'safari') {
         const A = DUO_RAIL.addr;
-        over += `<div class="duo-addr" data-tab="${tabId}" style="left:${pane.x + pane.left + A.side}px;
-          top:${pane.y + pane.h - A.bottom - A.height}px; width:${pane.viewW - A.side * 2}px; height:${A.height}px">
+        // beside the rail, not under it — it's what keeps it clear of the camera
+        const clearL = pane.edge === 'left' ? DUO_RAIL.inset : 0;
+        const clearR = pane.edge === 'right' ? DUO_RAIL.inset : 0;
+        over += `<div class="duo-addr" data-tab="${tabId}" style="left:${pane.x + clearL + A.side}px;
+          top:${pane.y + pane.h - A.bottom - A.height}px; width:${pane.w - clearL - clearR - A.side * 2}px; height:${A.height}px">
           <span class="gicon">${railIcon('lines')}</span>
           <button class="host" data-search data-addr-host>Search or enter website</button>
           <button class="gicon" data-reload title="Reload">${railIcon('reload')}</button>
@@ -568,22 +580,22 @@ function paintDuoHosts() {
 
 /* CSS rotation signs, since they're easy to get backwards: rotateX(+θ) brings
    whatever is BELOW the axis toward you; rotateY(+θ) brings whatever is LEFT
-   of the axis toward you. Each panel rotates about its hinge edge.
-   `extent` is how the projected device compares to its flat footprint, for
-   zoom-to-fit; `shadowAt` is where its lowest edge lands, as a share of H. */
+   of the axis toward you. Each panel rotates about its hinge edge. How big the
+   result is gets measured after it's drawn (poseBounds), not estimated here.
+   `shadowAt` is where the device's lowest edge lands, as a share of H. */
 const POSES = {
   // hinge vertical; the page on the right half, nearly flat; the left half
   // swings toward you, the way the demo of the fold animation holds it
   book:   { live: 'right', liveTilt: 'rotateY(-10deg)', awayTilt: 'rotateY(40deg)',
-            perspective: 1500, extent: { w: 1.02, h: 1.26 }, shadowAt: 1 },
+            perspective: 1500, shadowAt: 1 },
   // hinge horizontal; the page on the top half leaning back like a laptop
   // screen; the base lies flat toward you, seen from a little above
   laptop: { live: 'top',   liveTilt: 'rotateX(10deg)',  awayTilt: 'rotateX(62deg)',
-            perspective: 2200, extent: { w: 1.24, h: 0.88 }, shadowAt: 0.77 },
-  // an A-frame turned a little to one side, so the back shows past the edge as
-  // it does in Apple's alarm-clock photo; both halves hang from the hinge on top
-  tent:   { live: 'all',   liveTilt: 'rotateY(-14deg) rotateX(14deg)',  awayTilt: 'rotateY(-14deg) rotateX(-40deg)',
-            perspective: 1600, extent: { w: 1.14, h: 1.04 }, shadowAt: 0.985 },
+            perspective: 2200, shadowAt: 0.77 },
+  // an A-frame seen straight on: the outer display leans back from its base,
+  // and the device's back drops away behind it, just peeking out one side
+  tent:   { live: 'all',   liveTilt: 'rotateX(14deg)',  awayTilt: 'rotateX(-40deg) translateX(14px)',
+            perspective: 1600, shadowAt: 0.985 },
 };
 
 // Skins that sit at the foot of the screen and so land on a laptop's base.
@@ -592,12 +604,29 @@ const FOOT_SKINS = ['uiSafariGlass', 'uiChromeIosBottom', 'uiVivaldi', 'uiChrome
 let poseKey = '';
 let poseSnapTimer = null;
 
-/** How much bigger than the flat device the posed one can project, for zoom-to-fit. */
-function poseExtent(g) {
+/**
+ * The posed device's real footprint, measured rather than estimated: the tilted
+ * halves' on-screen boxes, in the phone's own unscaled coordinates. Transitions
+ * are held off while measuring, so this is where the pose ends up and not a
+ * frame of an animation passing through.
+ */
+function poseBounds() {
   if (!device.pose) return null;
-  const b = device.bezel;
-  const { extent } = POSES[device.pose];
-  return { w: (g.w + b * 2) * extent.w, h: (g.h + b * 2) * extent.h };
+  const before = { transform: phone.style.transform, left: phone.style.left, top: phone.style.top };
+  phone.classList.add('measuring');
+  Object.assign(phone.style, { transform: 'none', left: '0px', top: '0px' });
+  const origin = phone.getBoundingClientRect();
+  const boxes = ['liveHalf', 'awayHalf'].map($).filter((el) => !el.hidden).map((el) => el.getBoundingClientRect());
+  // put the phone back as it looked before transitions resume, or the morph
+  // would start from the unscaled measuring pose and visibly pop
+  Object.assign(phone.style, before);
+  void phone.offsetWidth;
+  phone.classList.remove('measuring');
+  const minX = Math.min(...boxes.map((b) => b.left)) - origin.left;
+  const minY = Math.min(...boxes.map((b) => b.top)) - origin.top;
+  const maxX = Math.max(...boxes.map((b) => b.right)) - origin.left;
+  const maxY = Math.max(...boxes.map((b) => b.bottom)) - origin.top;
+  return { minX, minY, w: maxX - minX, h: maxY - minY };
 }
 
 /**
@@ -630,7 +659,7 @@ function renderPose(g) {
     return;
   }
 
-  const key = JSON.stringify([device.pose, g.w, g.h, S.showChrome, browser.id, activeTabId, Boolean(laptopControlsUrl)]);
+  const key = JSON.stringify([device.displayId, g.w, g.h, S.showChrome, browser.id, activeTabId, Boolean(laptopControlsUrl)]);
   if (key === poseKey) return;
   poseKey = key;
 
@@ -657,7 +686,12 @@ function renderPose(g) {
       left: '0', top: '0', width: `${hingeX}px`, height: `${H}px`,
       transformOrigin: 'right center', transform: pose.awayTilt,
     });
-    away.innerHTML = awayScreenMarkup(g, { left: bz.l, top: bz.t, width: g.w / 2, height: g.h, shiftX: 0, shiftY: 0, foot: false })
+    const [tl, , , bl] = g.corners;
+    away.innerHTML = (device.placeholderOther
+      ? `<div class="pose-clip" style="left:${bz.l}px; top:${bz.t}px; width:${g.w / 2}px; height:${g.h}px;
+          border-radius:${tl}px 0 0 ${bl}px"><div class="pose-screen blurred" style="left:0; top:0; width:${g.w}px; height:${g.h}px">
+          ${placeholderAppMarkup(g.panes.find((p) => p.slot === 'other'))}</div><div class="pose-shade"></div></div>`
+      : awayScreenMarkup(g, { left: bz.l, top: bz.t, width: g.w / 2, height: g.h, shiftX: 0, shiftY: 0, radii: [tl, 0, 0, bl], foot: false }))
       + bezelImg(0, 0);
   } else if (pose.live === 'top') {
     const hingeY = bz.t + g.h / 2;
@@ -673,7 +707,7 @@ function renderPose(g) {
     const base = laptopControlsUrl
       ? `<div class="pose-clip" style="left:${bz.l}px; top:0; width:${g.w}px; height:${g.h / 2}px">
            <img class="pose-controls" alt="" src="${laptopControlsUrl}"></div>`
-      : awayScreenMarkup(g, { left: bz.l, top: 0, width: g.w, height: g.h / 2, shiftX: 0, shiftY: -g.h / 2, foot: true });
+      : awayScreenMarkup(g, { left: bz.l, top: 0, width: g.w, height: g.h / 2, shiftX: 0, shiftY: -g.h / 2, radii: [0, 0, g.corners[2], g.corners[3]], foot: true });
     away.innerHTML = base + bezelImg(0, -hingeY);
   } else {
     // tent: the whole outer display, and the device's back hanging from the same hinge
@@ -703,7 +737,7 @@ function renderPose(g) {
   Object.assign(glow.style, { width: `${W * 1.5}px`, left: `${-W * 0.25}px`, top: `${H * 0.55}px`, height: `${H * 0.7}px` });
   renderPoseAction();
 
-  if (pose.live === 'all' || (pose.live === 'top' && laptopControlsUrl)) { stopPoseSnapshots(); return; }
+  if (pose.live === 'all' || device.placeholderOther || (pose.live === 'top' && laptopControlsUrl)) { stopPoseSnapshots(); return; }
   // the page is re-emulated to this display just after this runs, so the first
   // picture waits for that to land; a second catches a slow reflow
   startPoseSnapshots();
@@ -716,9 +750,11 @@ function renderPose(g) {
  * part shows through the clip, holding the page picture at the page's position
  * and, on a laptop base, copies of the browser bars drawn at the foot.
  */
-function awayScreenMarkup(g, { left, top, width, height, shiftX, shiftY, foot }) {
+function awayScreenMarkup(g, { left, top, width, height, shiftX, shiftY, radii, foot }) {
   const page = g.page;
-  const r = '0';
+  // the screen's own corners where they're outer corners — a square picture
+  // would poke out past the bezel's curve
+  const r = radii.map((v) => `${v}px`).join(' ');
   let clones = '';
   for (const el of all('#duoAbove .duo-addr:not(.wide)')) {
     const copy = el.cloneNode(true);
@@ -782,6 +818,21 @@ async function refreshPoseSnapshot() {
    upper half. Stored by the main process; see controls:* in main.js. */
 let laptopControlsUrl = null;
 
+/**
+ * Put the laptop pose's button just under the phone. Worked out from the sizes
+ * layout() is settling on rather than measured, because the phone may still be
+ * animating toward them. The stage centres the phone and the button's reserved
+ * space together, so they sit as one group.
+ */
+function placePoseAction(scalerH, reserve) {
+  const btn = $('poseAction');
+  scaler.style.marginBottom = btn.hidden ? '' : `${reserve}px`;
+  if (btn.hidden) return;
+  const stagePadBottom = 24;   // #stage's padding-bottom
+  const scalerTop = (stage.clientHeight - stagePadBottom - scalerH - reserve) / 2;
+  btn.style.top = `${Math.round(scalerTop + scalerH + 14)}px`;
+}
+
 function renderPoseAction() {
   const btn = $('poseAction');
   const show = device?.pose === 'laptop';
@@ -804,4 +855,17 @@ async function togglePoseControls() {
   poseKey = '';
   animateSwitch();
   layout();
+}
+
+/* ------------------------------------------------------ placeholder app
+   Stands in for "another app" beside the page — a quiet list-style app, drawn
+   rather than an image so it follows light and dark with the rest. */
+function placeholderAppMarkup(pane) {
+  const rows = Array.from({ length: 9 }, (_, i) => `
+    <div class="ph-row"><span class="ph-avatar"></span>
+      <span class="ph-lines"><i style="width:${58 - (i * 7) % 24}%"></i><i style="width:${82 - (i * 11) % 30}%"></i></span></div>`).join('');
+  const r = pane.radii ? pane.radii.map((v) => `${v}px`).join(' ') : '0';
+  return `<div class="duo-placeholder" style="left:${pane.x}px; top:${pane.y}px; width:${pane.w}px; height:${pane.h}px; border-radius:${r}">
+    <div class="ph-head"><span class="ph-round"></span><span class="ph-title"></span><span class="ph-round"></span></div>
+    <div class="ph-search"></div>${rows}</div>`;
 }

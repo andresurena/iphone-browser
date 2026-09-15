@@ -311,6 +311,9 @@ select {
 /* ------------------------------------------------------------- frames */
 .frame {
   position: relative;
+  /* its own size, never its container's: clipped to one half in a pose, a
+     block frame would shrink to that half and squash the bezel with it */
+  width: fit-content;
   padding: var(--bezel-t, var(--bezel)) var(--bezel-r, var(--bezel)) var(--bezel-b, var(--bezel)) var(--bezel-l, var(--bezel));
   /* per corner: iPhone Duo's outer display is tight on its hinge side */
   border-radius:
@@ -1446,7 +1449,9 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
    corners, and the page shows through. The drawn frame stands down. */
 #phone.bezel-on .frame { background: none; box-shadow: none; border-radius: 0; }
 #phone.bezel-on .frame::after { display: none; }
-#phone.bezel-on .screen { border-radius: 0; box-shadow: none; }
+/* the screen keeps the cutout's own corner radii: square page corners would
+   poke out past the bezel's curve */
+#phone.bezel-on .screen { box-shadow: none; }
 #phone.bezel-on #awayHalf { background: none; box-shadow: none; border-radius: 0; }
 .bezel {
   position: absolute;
@@ -1473,7 +1478,7 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
 .pose-action {
   position: absolute;
   left: 50%;
-  bottom: 14px;
+  top: 0;               /* placed just under the phone by placePoseAction() */
   transform: translateX(-50%);
   z-index: 5;
   height: 30px;
@@ -1486,3 +1491,29 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
   box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
 }
 .pose-action:hover { background: var(--field-focus); }
+
+/* measuring a pose: no transitions, so the box is where the pose lands */
+#phone.measuring, #phone.measuring * { transition: none !important; }
+
+.pose-screen.blurred { filter: blur(2.5px) saturate(.92); }
+
+/* a stand-in for another app beside the page */
+.duo-placeholder {
+  position: absolute;
+  overflow: hidden;
+  padding: 18px 20px;
+  background: var(--ui-neutral);
+  color: var(--ui-fg);
+  pointer-events: none;
+}
+.ph-head { display: flex; align-items: center; gap: 12px; height: 40px; margin-bottom: 14px; }
+.ph-round { width: 36px; height: 36px; border-radius: 50%; background: color-mix(in srgb, var(--ui-fg) 10%, transparent); }
+.ph-title { flex: 1; height: 16px; max-width: 42%; margin: 0 auto; border-radius: 8px; background: color-mix(in srgb, var(--ui-fg) 22%, transparent); }
+.ph-search { height: 36px; border-radius: 18px; margin-bottom: 18px; background: color-mix(in srgb, var(--ui-fg) 8%, transparent); }
+.ph-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid color-mix(in srgb, var(--ui-fg) 8%, transparent); }
+.ph-avatar { flex: none; width: 38px; height: 38px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 45%, var(--ui-neutral)); }
+.ph-row:nth-child(3n) .ph-avatar { background: color-mix(in srgb, #ff9f0a 55%, var(--ui-neutral)); }
+.ph-row:nth-child(3n+1) .ph-avatar { background: color-mix(in srgb, #30d158 50%, var(--ui-neutral)); }
+.ph-lines { flex: 1; display: flex; flex-direction: column; gap: 7px; }
+.ph-lines i { display: block; height: 9px; border-radius: 5px; background: color-mix(in srgb, var(--ui-fg) 18%, transparent); }
+.ph-lines i + i { height: 8px; background: color-mix(in srgb, var(--ui-fg) 10%, transparent); }

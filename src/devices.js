@@ -131,6 +131,19 @@ const IPHONE_DUO = {
       beta: true,
     },
     {
+      // The book with the website on the right half only and another app on
+      // the half turned away — how a site actually sits in a book pose when
+      // it's sharing the display, rather than spread across the hinge
+      id: 'pose-book-beside',
+      name: 'Book, beside another app',
+      of: 'inner',
+      pose: 'book',
+      split: 'trailing',
+      placeholderOther: true,
+      orientation: 'landscape',
+      beta: true,
+    },
+    {
       id: 'pose-laptop',
       name: 'Laptop, on a surface',
       of: 'inner',
