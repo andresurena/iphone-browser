@@ -100,6 +100,16 @@ const IPHONE_DUO = {
       of: 'inner',
       split: 'trailing',
     },
+    {
+      // Media over an app: the video takes the top quarter and the app below
+      // it runs on past the fold, as in Apple's Messages-under-a-video demo
+      id: 'split-video',
+      name: 'Split View, video on top',
+      of: 'inner',
+      split: 'trailing',
+      splitRatio: 0.25,
+      orientation: 'portrait',
+    },
 
     // Poses — Beta. The device drawn in three dimensions the way Apple's
     // "device poses" diagram shows it held or set down. Each pose fixes the

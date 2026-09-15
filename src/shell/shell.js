@@ -12,7 +12,7 @@ const meta      = $('meta');
 const webviews  = $('webviews');
 const tabsEl    = $('tabs');
 
-const STATUS_BARS = { ios: $('sbIos'), android: $('sbAndroid') };
+const STATUS_BARS = { ios: $('sbIos'), android: $('sbAndroid'), duo: $('sbDuo') };
 const SKINS = {
   safariGlass:   $('uiSafariGlass'),
   safariTop:     $('uiSafariTop'),
@@ -308,10 +308,11 @@ function geometry() {
     camera: null,
   };
 
-  const g = usesRail(landscape)
+  const g = usesDuoBars(landscape)
     ? {
         ...shared,
-        rail: true,
+        duo: true,
+        rail: usesRail(landscape),
         split: Boolean(device.split),
         camera: cameraSpot(w, h, landscape),
         statusH: 0,
@@ -352,6 +353,7 @@ function barGeometry(shared) {
   const front = device.front;
   return {
     ...shared,
+    duo: false,
     rail: false,
     split: false,
     statusH, top, bottom, left: side, right: side, floating,
@@ -399,9 +401,11 @@ function layout() {
   s.setProperty('--right-inset', `${g.right}px`);
   s.setProperty('--floating', `${g.floating}px`);
 
-  // one status bar per platform — a rail carries its own, so they stand down
+  // one status bar per platform — a foldable never shows the classic row, only
+  // the time and glyph in the corner; its own bars carry that themselves
+  const barKind = device.foldable ? 'duo' : device.platform;
   for (const [platform, el] of Object.entries(STATUS_BARS)) {
-    el.classList.toggle('on', platform === device.platform && g.statusH > 0);
+    el.classList.toggle('on', platform === barKind && g.statusH > 0);
     el.classList.toggle('tinted', S.showChrome);
     el.classList.toggle('neutral', S.showChrome && browser.statusTint === 'neutral');
   }
@@ -524,9 +528,9 @@ function contentRadii(pane) {
   return r.map((v) => `${v}px`).join(' ');
 }
 
-function activeSkins({ landscape, rail }) {
-  // a foldable's rail stands in for every browser's bars (drawn in duo.js)
-  if (!S.showChrome || rail) return [];
+function activeSkins({ landscape, duo }) {
+  // a foldable's own bars stand in for the browser's (drawn in duo.js)
+  if (!S.showChrome || duo) return [];
   switch (browser.id) {
     case 'chrome-android': return [SKINS.chromeAndroid, SKINS.chromeNav];
     case 'chrome-ios':     return [SKINS.chromeIosTop, SKINS.chromeIosBot];
@@ -713,7 +717,7 @@ function paintMenus() {
   if (display) label('displayMenu', displayLabel(display, S.orientation === 'landscape'));
   label('browserMenu', browser.name);
   $('rotate').disabled = Boolean(device.orientation);
-  $('rotate').title = device.orientation ? 'This pose has a fixed orientation' : 'Rotate (⌘⌃R)';
+  $('rotate').title = device.orientation ? 'This display has a fixed orientation' : 'Rotate (⌘⌃R)';
   label('uaMenu', uaById(S.userAgentId).name);
   label('zoomMenu', (ZOOMS.find((z) => z.value === S.zoom) || ZOOMS[0]).label);
 }
@@ -870,7 +874,7 @@ function wireUI() {
 }
 
 function rotate() {
-  if (device.orientation) { toast('This pose has a fixed orientation — pick another display to rotate.'); return; }
+  if (device.orientation) { toast('This display has a fixed orientation — pick another to rotate.'); return; }
   set({ orientation: S.orientation === 'portrait' ? 'landscape' : 'portrait' });
 }
 

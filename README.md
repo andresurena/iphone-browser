@@ -175,7 +175,17 @@ short, toolbar items fold into "…" first and the tab bar collapses after, as t
 guidelines describe. Safari's own rail, from Apple's launch event, is plainer
 still — back and bookmarks above, new tab and tabs below — and its address bar
 stays horizontal: a floating pill at the foot of each pane that the page runs
-under, which is what a page's `env(safe-area-inset-bottom)` reports.
+under, which is what a page's `env(safe-area-inset-bottom)` reports. Upright,
+where the inner display keeps horizontal bars, Safari's capsule runs along the
+top instead — back, bookmarks, address, new tab, tabs — with the status beside
+it, and the page reports that as `env(safe-area-inset-top)`.
+
+The status is only ever the time and one combined Wi-Fi/signal/battery glyph,
+in a corner: the classic row never appears on the Duo. Stacked Split View has
+no rails — both apps keep horizontal bars, the status on the top one — and
+*Split View, video on top* gives the top app a quarter of the display with the
+page running on past the fold below it, as Apple showed Messages under a
+video.
 
 **Split View** draws both apps — two rounded windows either side of a divider —
 and the other half is your second tab, live. Click into it and it becomes the tab

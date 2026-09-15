@@ -31,6 +31,11 @@ const DUO_RAIL = {
   // Safari keeps its address bar horizontal on a rail layout — a floating pill
   // at the foot of the pane, beside the rail (Apple's launch event, Split View)
   addr: { height: 46, side: 12, bottom: 14 },
+  // Horizontal layouts — the inner display upright, and stacked Split View —
+  // put Safari's bar and the status capsule along the top instead, the page
+  // running under both (Apple's launch footage: Safari on the inner display)
+  topbar: { height: 46, side: 12, top: 10 },
+  statusPill: 82,   // the time-and-glyph capsule's width
 };
 
 /* ------------------------------------------------------------- displays */
@@ -65,6 +70,7 @@ function resolveDevice(entry) {
     id: entry.id,
     displayId: shown.id,
     name: `${entry.name} ${shown.name}`,
+    foldable: true,
     screenRadius: physical.screenRadius ?? physical.corners?.free ?? 0,
     // Duo's cameras are drawn by renderDuo(), not the classic island
     front: { type: 'none', w: 0, h: 0, top: 0 },
@@ -73,9 +79,14 @@ function resolveDevice(entry) {
 
 /** Whether this display runs its controls down an edge rather than across. */
 function usesRail(landscape) {
-  return Boolean(device.split)
-    || device.rail === 'always'
-    || (device.rail === 'landscape' && landscape);
+  // stacked apps use horizontal bars; only side-by-side ones get rails
+  if (device.split) return landscape;
+  return device.rail === 'always' || (device.rail === 'landscape' && landscape);
+}
+
+/** Whether the foldable's own chrome is drawn for this browser and layout. */
+function usesDuoBars(landscape) {
+  return usesRail(landscape) || Boolean(device.split) || (device.foldable && browser.id === 'safari');
 }
 
 /* ---------------------------------------------------------------- shape */
@@ -156,6 +167,35 @@ function railPane(rect, edge, { status, cameraAt = null }) {
 }
 
 /**
+ * A pane with horizontal bars: Safari's capsule along the top with the status
+ * capsule beside it, the page running under them. What the inner display
+ * gives Safari upright, and what every pane gets when two apps stack.
+ */
+function topPane(rect, { status, foot }) {
+  const T = DUO_RAIL.topbar;
+  const barFoot = T.top * 2 + T.height;
+  return {
+    ...rect,
+    edge: null,
+    status,
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    viewW: rect.w,
+    viewH: rect.h,
+    // the capsules float, so the page keeps the whole pane and is told what
+    // they cover; the home indicator only matters on the pane that has it
+    safeArea: {
+      top: S.showChrome ? barFoot : (status ? DUO_RAIL.topbar.top + T.height : 0),
+      right: 0,
+      bottom: foot ? device.homeIndicator : 0,
+      left: 0,
+    },
+  };
+}
+
+/**
  * Split the screen into panes. One pane normally; in Split View, two app
  * windows with a divider between them, each with its rail on its own outer edge
  * — the left app's on the left — and the status bar on the trailing app only.
@@ -164,16 +204,19 @@ function railPane(rect, edge, { status, cameraAt = null }) {
 function duoPanes(w, h, landscape) {
   if (!device.split) {
     const cam = cameraSpot(w, h, landscape);
+    const rect = { x: 0, y: 0, w, h };
     return {
       divider: null,
       panes: [{
         slot: 'page',
         radii: null,
-        ...railPane({ x: 0, y: 0, w, h }, 'right', {
-          // iOS drops the status bar with the outer display turned, as on any iPhone
-          status: !(landscape && device.camera === 'corner'),
-          cameraAt: cam ? cam.end : null,
-        }),
+        ...(usesRail(landscape)
+          ? railPane(rect, 'right', {
+              // iOS drops the status bar with the outer display turned, as on any iPhone
+              status: !(landscape && device.camera === 'corner'),
+              cameraAt: cam ? cam.end : null,
+            })
+          : topPane(rect, { status: true, foot: true })),
       }],
     };
   }
@@ -188,9 +231,12 @@ function duoPanes(w, h, landscape) {
     trailing = { ...railPane({ x: pw + gap, y: 0, w: pw, h }, 'right', { status: true }), radii: [r, 0, 0, r] };
     divider = { x: pw, y: 0, w: gap, h, axis: 'vertical' };
   } else {
-    const ph = (h - gap) / 2;
-    leading = { ...railPane({ x: 0, y: 0, w, h: ph }, 'right', { status: true }), radii: [0, 0, r, r] };
-    trailing = { ...railPane({ x: 0, y: ph + gap, w, h: ph }, 'right', { status: false }), radii: [r, r, 0, 0] };
+    // stacked: horizontal bars in both, the status on the top one. A video on
+    // top takes a quarter and the app below runs on past the fold.
+    const ratio = device.splitRatio || 0.5;
+    const ph = Math.round((h - gap) * ratio);
+    leading = { ...topPane({ x: 0, y: 0, w, h: ph }, { status: true, foot: false }), radii: [0, 0, r, r] };
+    trailing = { ...topPane({ x: 0, y: ph + gap, w, h: h - gap - ph }, { status: false, foot: true }), radii: [r, r, 0, 0] };
     divider = { x: 0, y: ph, w, h: gap, axis: 'horizontal' };
   }
 
@@ -348,6 +394,25 @@ function railMarkup(pane, tabId) {
     </div>`;
 }
 
+/** Safari's top capsule and the status capsule, for a pane with horizontal bars. */
+function topBarMarkup(pane, tabId) {
+  const T = DUO_RAIL.topbar;
+  const icon = (attrs, name, title) => `<button class="gicon" ${attrs} title="${title}">${railIcon(name)}</button>`;
+  const status = pane.status
+    ? `<div class="duo-status-pill" style="width:${DUO_RAIL.statusPill}px"><span class="time" data-clock>9:41</span>${STATUS_GLYPH}</div>`
+    : '';
+  const bar = S.showChrome && tabId != null
+    ? `<div class="duo-addr wide" data-tab="${tabId}">
+        ${icon('data-back', 'back', 'Back')}${icon('', 'book', 'Bookmarks')}
+        <button class="host field" data-search><span data-addr-host>Search or enter website</span>${railIcon('reload')}</button>
+        ${icon('data-new-tab', 'plus', 'New Tab')}${icon('data-tabs', 'tabs2', 'Tabs')}
+      </div>`
+    : '<div class="duo-spring-h"></div>';
+  return `
+    <div class="duo-topbar" data-tab="${tabId ?? ''}" style="left:${pane.x + T.side}px; top:${pane.y + T.top}px;
+      width:${pane.w - T.side * 2}px; height:${T.height}px">${bar}${status}</div>`;
+}
+
 /* --------------------------------------------------------------- drawing */
 
 /**
@@ -382,7 +447,7 @@ let duoKey = '';
 function renderDuo(g) {
   const below = $('duoBelow');
   const above = $('duoAbove');
-  if (!g.rail && !g.crease && !g.camera) {
+  if (!g.duo && !g.crease && !g.camera) {
     if (duoKey) { below.innerHTML = ''; above.innerHTML = ''; duoKey = ''; }
     return;
   }
@@ -397,13 +462,13 @@ function renderDuo(g) {
   let under = '';
   let over = '';
 
-  if (g.rail) {
+  if (g.duo) {
     for (const pane of g.panes) {
       const tabId = pane.slot === 'page' ? activeTabId : otherId;
       under += `<div class="duo-pane" style="left:${pane.x}px; top:${pane.y}px;
         width:${pane.w}px; height:${pane.h}px; border-radius:${px(pane.radii)}"></div>`;
-      over += railMarkup(pane, tabId);
-      if (S.showChrome && tabId != null && browser.id === 'safari') {
+      over += pane.edge ? railMarkup(pane, tabId) : topBarMarkup(pane, tabId);
+      if (pane.edge && S.showChrome && tabId != null && browser.id === 'safari') {
         const A = DUO_RAIL.addr;
         over += `<div class="duo-addr" data-tab="${tabId}" style="left:${pane.x + pane.left + A.side}px;
           top:${pane.y + pane.h - A.bottom - A.height}px; width:${pane.viewW - A.side * 2}px; height:${A.height}px">
@@ -452,7 +517,8 @@ function renderDuo(g) {
 function paintDuoHosts() {
   for (const el of all('.duo-addr')) {
     const tab = tabById(Number(el.dataset.tab));
-    el.querySelector('[data-addr-host]').textContent = hostnameOf(tab?.url || '') || 'Search or enter website';
+    const host = el.querySelector('[data-addr-host]');
+    if (host) host.textContent = hostnameOf(tab?.url || '') || 'Search or enter website';
   }
 }
 
@@ -620,7 +686,7 @@ function awayScreenMarkup(g, { left, top, width, height, shiftX, shiftY, radii, 
   const page = g.page;
   const r = radii.map((v) => `${v}px`).join(' ');
   let clones = '';
-  for (const el of all('#duoAbove .duo-addr')) {
+  for (const el of all('#duoAbove .duo-addr:not(.wide)')) {
     const copy = el.cloneNode(true);
     copy.classList.add('pose-copy');
     clones += copy.outerHTML;
