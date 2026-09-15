@@ -27,8 +27,11 @@ const IOS_LANDSCAPE_SAFE = { top: 0, right: 59, bottom: 21, left: 59 };
  * Split View with your page on either side. Orientation stays on the rotate
  * button, so every display comes in both.
  *
- * Panel sizes are Apple's — 1398 × 2034 on the 5.4" outer display and
- * 1878 × 2670 on the 7.6" inner one, both @3x: 466 × 678 pt and 626 × 890 pt.
+ * Screen sizes come from Apple's own bezel templates (Apple Design Resources):
+ * 1398 × 2034 for the outer display and 2007 × 2853 for the inner, both @3x —
+ * 466 × 678 pt and 669 × 951 pt. The inner figure is larger than the panel's
+ * 1878 × 2670 pixels: it renders at 3× and downsamples, as the Plus phones did,
+ * and 2007 × 2853 is also what App Store Connect asks for in screenshots.
  *
  * What catches layouts out is where the system UI goes. On the outer display,
  * and on the inner one in landscape, iOS runs the status bar, toolbar and tab
@@ -49,7 +52,8 @@ const IPHONE_DUO = {
   name: 'iPhone Duo',
   platform: 'ios',
   dpr: 3,
-  buttons: 'none',        // Apple's diagrams don't place any, so neither do we
+  buttons: 'none',        // the bezel images carry them
+  browsers: ['safari'],   // the only browser Apple has shown on it; the rest are guesswork
   homeIndicator: 34,
   landscapeSafeArea: IOS_LANDSCAPE_SAFE,
   displays: [
@@ -63,7 +67,7 @@ const IPHONE_DUO = {
       width: 466,
       height: 678,
       bezel: 8,
-      corners: { hinge: 16, free: 62 },
+      corners: { hinge: 9, free: 59 },
       hinge: 'left',
       camera: 'corner',
       rail: 'always',
@@ -72,10 +76,10 @@ const IPHONE_DUO = {
     {
       id: 'inner',
       name: 'Inner',
-      width: 626,
-      height: 890,
+      width: 669,
+      height: 951,
       bezel: 7,
-      screenRadius: 44,
+      screenRadius: 55,
       camera: 'hidden',   // under the display, invisible unless in use
       rail: 'landscape',
       statusBar: 48,

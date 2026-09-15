@@ -131,7 +131,7 @@ function toggleBrowser(id, on) {
   if (on) off.delete(id); else off.add(id);
   set({ disabledBrowsers: [...off] }, { relayout: false });
 
-  if (!on && browser.id === id) pickBrowser(enabledBrowsersFor(deviceEntry.platform)[0].id);
+  if (!on && browser.id === id) pickBrowser(enabledBrowsersFor(deviceEntry)[0].id);
   renderSettings();
 }
 

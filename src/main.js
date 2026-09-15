@@ -418,6 +418,61 @@ ipcMain.handle('capture-page', async (_e, wcId, maxWidth) => {
   }
 });
 
+/* ------------------------------------------- laptop pose: simulated controls
+   An image of the user's choosing fills the lower half in the laptop pose — the
+   way Netflix puts playback controls there — while the page keeps the upper
+   half. Copied into userData so it survives; the picker's grant covers the read
+   even under the App Sandbox. */
+const controlsPath = () => {
+  const name = loadState().laptopControls;
+  return name ? path.join(app.getPath('userData'), name) : null;
+};
+const MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' };
+function imageDataUrl(file) {
+  const mime = MIME[path.extname(file).toLowerCase()] || 'image/png';
+  return `data:${mime};base64,${fs.readFileSync(file).toString('base64')}`;
+}
+
+ipcMain.handle('controls:load', () => {
+  const file = controlsPath();
+  try { return file ? imageDataUrl(file) : null; } catch { return null; }
+});
+
+ipcMain.handle('controls:pick', async (_e, fit) => {
+  const { response } = await dialog.showMessageBox(win, {
+    type: 'info',
+    message: 'Simulated controls for the laptop pose',
+    detail: `Choose an image to fill the lower half of the display — playback controls, a keyboard, whatever the site would put there. The page keeps the upper half.\n\nFor an exact fit, make it ${fit.px.w} × ${fit.px.h} pixels (${fit.pt.w} × ${fit.pt.h} points at 3×). Other sizes are scaled to cover the area.`,
+    buttons: ['Choose Image…', 'Cancel'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (response !== 0) return null;
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    properties: ['openFile'],
+    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+  });
+  if (canceled || !filePaths[0]) return null;
+  const ext = path.extname(filePaths[0]).toLowerCase();
+  const name = `laptop-controls${MIME[ext] ? ext : '.png'}`;
+  const old = controlsPath();
+  try {
+    fs.copyFileSync(filePaths[0], path.join(app.getPath('userData'), name));
+    if (old && path.basename(old) !== name) fs.rmSync(old, { force: true });
+    saveState({ laptopControls: name });
+    return imageDataUrl(path.join(app.getPath('userData'), name));
+  } catch (err) {
+    dialog.showErrorBox('Could not use that image', err.message);
+    return null;
+  }
+});
+
+ipcMain.handle('controls:clear', () => {
+  const file = controlsPath();
+  if (file) fs.rmSync(file, { force: true });
+  saveState({ laptopControls: null });
+});
+
 ipcMain.handle('reveal', (_e, filePath) => shell.showItemInFolder(filePath));
 ipcMain.handle('open-external', (_e, url) => {
   // only ever web links — this is reachable from the renderer

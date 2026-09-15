@@ -140,8 +140,8 @@ simply follows the browser — Safari sends Safari's, Chrome sends Chrome's.
 | Device | Viewport | DPR |
 |---|---|---|
 | iPhone Duo — Outer | 466 × 678 | 3 |
-| iPhone Duo — Inner (and partially folded) | 626 × 890 | 3 |
-| iPhone Duo — Split View, each app | 437 × 626 | 3 |
+| iPhone Duo — Inner (and partially folded) | 669 × 951 | 3 |
+| iPhone Duo — Split View, each app | 467 × 669 | 3 |
 | iPhone 17 Pro Max | 440 × 956 | 3 |
 | iPhone 16 Pro Max | 440 × 956 | 3 |
 | iPhone 16 Pro | 402 × 874 | 3 |
@@ -153,13 +153,21 @@ simply follows the browser — Safari sends Safari's, Chrome sends Chrome's.
 
 Every viewport except the Duo's matches Chrome DevTools' own device list, so a
 page measured here measures the same in DevTools' device toolbar. DevTools has
-no iPhone Duo preset yet — these come from Apple's panel sizes.
+no iPhone Duo preset yet; the Duo's sizes are the screen cutouts in Apple's own
+bezel templates — 1398 × 2034 and 2007 × 2853 pixels at 3× — and the frame you
+see around it *is* that template, with the page showing through the cutout. The
+inner figure is larger than the panel's 1878 × 2670 physical pixels: it renders
+at 3× and downsamples, as the Plus phones did, which is also why App Store
+Connect asks for 2007 × 2853 screenshots.
 
 ### iPhone Duo
 
 One device, with a **Display** menu beside it: Outer · Inner · Inner, partially
-folded · Split View with your page on the left · Split View with it on the right.
-Rotate works on every one of them.
+folded · Split View with your page on the left · Split View with it on the right ·
+Split View with a video on top. Rotate works on every one of them. It's Safari
+only: that's the only browser Apple has shown on the Duo, and guessing at
+Chrome's layout there would be exactly the kind of made-up detail this app
+exists to avoid.
 
 The outer display is the one that catches layouts out. At 466 × 678 it's **wider
 and shorter than any other iPhone**, and iOS runs the status bar, toolbar and tab
@@ -167,12 +175,10 @@ bar down the trailing edge instead of across the top and bottom — so a page th
 gets an asymmetric safe area, the opposite of what phone layouts usually assume.
 The inner display does the same in landscape and keeps ordinary bars in portrait.
 
-What's drawn follows Apple's own diagrams: a round camera in the corner, which
-moves to the bottom-right when you turn the device; the time and a single
-Wi-Fi/signal/battery glyph beneath it; toolbar buttons at the top of the rail with
-grouped items sharing one capsule; the tab bar at the foot. When the rail runs
-short, toolbar items fold into "…" first and the tab bar collapses after, as the
-guidelines describe. Safari's own rail, from Apple's launch event, is plainer
+What's drawn follows Apple's own diagrams and launch footage: the rail is
+frosted glass floating over the page — the page runs on underneath it and
+reports the rail as its safe-area inset on that edge — with the time and a
+single Wi-Fi/signal/battery glyph at the top, in line with the camera. Safari's own rail, from Apple's launch event, is plainer
 still — back and bookmarks above, new tab and tabs below — and its address bar
 stays horizontal: a floating pill at the foot of each pane that the page runs
 under, which is what a page's `env(safe-area-inset-bottom)` reports. Upright,
@@ -201,7 +207,10 @@ and *Tent, standing* (the outer display leaning back on an A-frame, the inner
 display lighting the surface in the page's own colour, as the alarm clock
 does). The half you're looking at is the live page — you can still scroll and
 click it — and the half turned away is a picture of the page that refreshes as
-it scrolls and loads. Nothing about the emulation changes in a pose: a site
+it scrolls and loads. In the laptop pose a button under the phone, **Add
+Simulated Controls — like Netflix**, lets you put an image of your choosing on
+the base (the dialog tells you the exact size for a perfect fit); the page then
+keeps the upper half, which is what an app in that arrangement gets. Nothing about the emulation changes in a pose: a site
 gets exactly what it gets on the flat display, because Safari gives it no way
 to know the phone is folded. Beta because Apple has published nothing about
 web content in any pose; the angles are matched to its illustrations.

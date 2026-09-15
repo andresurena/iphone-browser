@@ -311,7 +311,7 @@ select {
 /* ------------------------------------------------------------- frames */
 .frame {
   position: relative;
-  padding: var(--bezel);
+  padding: var(--bezel-t, var(--bezel)) var(--bezel-r, var(--bezel)) var(--bezel-b, var(--bezel)) var(--bezel-l, var(--bezel));
   /* per corner: iPhone Duo's outer display is tight on its hinge side */
   border-radius:
     calc(var(--r-tl) + var(--bezel)) calc(var(--r-tr) + var(--bezel))
@@ -1439,3 +1439,50 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
 .duo-addr.wide .field svg { flex: none; width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; opacity: .7; }
 .duo-addr.wide .gicon { width: 34px; height: 34px; opacity: .8; }
 .duo-addr.wide .gicon:disabled { opacity: .3; }
+
+/* ================================================= Apple's bezel images
+   For a foldable the frame is the real thing: the image sits over the screen
+   with its cutout transparent, so it carries the hinge, buttons, camera and
+   corners, and the page shows through. The drawn frame stands down. */
+#phone.bezel-on .frame { background: none; box-shadow: none; border-radius: 0; }
+#phone.bezel-on .frame::after { display: none; }
+#phone.bezel-on .screen { border-radius: 0; box-shadow: none; }
+#phone.bezel-on #awayHalf { background: none; box-shadow: none; border-radius: 0; }
+.bezel {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 6;
+  pointer-events: none;
+}
+#awayHalf .bezel { inset: auto; }
+#awayHalf .pose-back-img { position: absolute; transform: rotate(-90deg); transform-origin: center; pointer-events: none; }
+#awayHalf .pose-controls { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+
+/* the rail: frosted glass over the page, its inner edge softened rather than
+   ruled (Apple's Split View still) */
+.duo-rail {
+  background: color-mix(in srgb, var(--bar-solid) 30%, transparent);
+  backdrop-filter: blur(22px) saturate(1.5);
+}
+.duo-rail.edge-right { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 20px), transparent); }
+.duo-rail.edge-left  { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent); }
+
+/* laptop pose: the button under the phone for simulated controls */
+.pose-action {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 5;
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid var(--chrome-line);
+  border-radius: 8px;
+  background: var(--chrome);
+  color: var(--fg);
+  font: 500 12.5px -apple-system, system-ui, sans-serif;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
+}
+.pose-action:hover { background: var(--field-focus); }

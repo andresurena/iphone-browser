@@ -66,6 +66,9 @@
         <div id="pose">
           <div id="liveHalf">
         <div class="frame">
+          <!-- a foldable's frame is Apple's own bezel image, laid over the
+               screen with the cutout transparent; hidden for other devices -->
+          <img id="bezel" class="bezel" alt="" hidden>
           <div class="screen">
 
             <!-- foldables: each pane's window and the Split View divider,
@@ -281,6 +284,9 @@
         </div><!-- /pose -->
       </div>
     </div>
+
+    <!-- laptop pose: put something on the base — see poseAction in duo.js -->
+    <button id="poseAction" class="pose-action" hidden></button>
 
     <div id="meta" class="meta" hidden></div>
   </main>

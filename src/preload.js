@@ -32,6 +32,9 @@ contextBridge.exposeInMainWorld('bridge', {
   reveal: (filePath) => ipcRenderer.invoke('reveal', filePath),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   reportPageRects: (rects) => ipcRenderer.send('pages:rects', rects),
+  loadControls: () => ipcRenderer.invoke('controls:load'),
+  pickControls: (fit) => ipcRenderer.invoke('controls:pick', fit),
+  clearControls: () => ipcRenderer.invoke('controls:clear'),
   getOpenAtLogin: () => ipcRenderer.invoke('login:get'),
   setOpenAtLogin: (on) => ipcRenderer.invoke('login:set', on),
 

@@ -80,9 +80,16 @@ const enabledDevices = () => {
   const on = DEVICES.filter((d) => isDeviceOn(d.id));
   return on.length ? on : DEVICES;
 };
-const enabledBrowsersFor = (platform) => {
-  const on = browsersFor(platform).filter((b) => isBrowserOn(b.id));
-  return on.length ? on : browsersFor(platform);
+// a device can restrict its browsers (iPhone Duo: Safari, the only one Apple
+// has shown on it); takes a device entry, or a platform for the settings list
+const browsersOf = (entryOrPlatform) => {
+  const entry = typeof entryOrPlatform === 'string' ? { platform: entryOrPlatform } : entryOrPlatform;
+  return browsersFor(entry.platform).filter((b) => !entry.browsers || entry.browsers.includes(b.id));
+};
+const enabledBrowsersFor = (entryOrPlatform) => {
+  const all = browsersOf(entryOrPlatform);
+  const on = all.filter((b) => isBrowserOn(b.id));
+  return on.length ? on : all;
 };
 
 /* ---------------------------------------------------------- webview api
@@ -109,6 +116,7 @@ function safeCall(primary, fallback, dflt) {
   S = data.state;
   APP_NAME = data.appName || APP_NAME;
   APP_VERSION = data.version || '';
+  laptopControlsUrl = await window.bridge.loadControls();
 
   settleStartingState();
   document.body.classList.toggle('advanced', S.advanced);
@@ -160,7 +168,7 @@ function settleStartingState() {
   patch.deviceId = deviceEntry.id;
 
   browser = browserById(S.browserId, deviceEntry.platform);
-  if (!S.restoreLast || !isBrowserOn(browser.id)) browser = enabledBrowsersFor(deviceEntry.platform)[0];
+  if (!S.restoreLast || !enabledBrowsersFor(deviceEntry).includes(browser)) browser = enabledBrowsersFor(deviceEntry)[0];
   patch.browserId = browser.id;
   if (!S.advanced || !S.restoreLast) patch.userAgentId = browser.userAgentId;
 
@@ -390,6 +398,14 @@ function layout() {
   s.setProperty('--w', `${g.w}px`);
   s.setProperty('--h', `${g.h}px`);
   s.setProperty('--bezel', `${device.bezel}px`);
+  // a foldable's frame is Apple's bezel image, padded to the image's margins
+  const bz = bezelMargins(g.landscape);
+  const bezel = bezelFor(g.landscape);
+  for (const side of ['t', 'r', 'b', 'l']) s.setProperty(`--bezel-${side}`, `${bz[side]}px`);
+  phone.classList.toggle('bezel-on', Boolean(bezel));
+  const bezelEl = $('bezel');
+  bezelEl.hidden = !bezel;
+  if (bezel && bezelEl.getAttribute('src') !== bezel.src) bezelEl.src = bezel.src;
   ['tl', 'tr', 'br', 'bl'].forEach((corner, i) => s.setProperty(`--r-${corner}`, `${g.corners[i]}px`));
   s.setProperty('--status-h', `${g.statusH}px`);
   s.setProperty('--front-w', `${g.frontW}px`);
@@ -428,8 +444,8 @@ function layout() {
   // fit-to-window or a fixed percentage; a posed device projects bigger than
   // its flat footprint, so it's fitted to what it will actually take up
   const extent = poseExtent(g);
-  const bodyW = g.w + device.bezel * 2;
-  const bodyH = g.h + device.bezel * 2;
+  const bodyW = g.w + bz.l + bz.r;
+  const bodyH = g.h + bz.t + bz.b;
   const fitW = extent ? extent.w : bodyW;
   const fitH = extent ? extent.h : bodyH;
   const scale = S.zoom === 'fit'
@@ -681,7 +697,7 @@ function bindMenus() {
   bindMenu($('browserMenu'), () => ({
     // oldest browser nearest the button
     sections: [{
-      items: [...enabledBrowsersFor(deviceEntry.platform)]
+      items: [...enabledBrowsersFor(deviceEntry)]
         .sort((a, b) => (b.since || 0) - (a.since || 0))
         .map((b) => ({ value: b.id, label: b.name })),
     }],
@@ -716,6 +732,7 @@ function paintMenus() {
   $('displayMenu').hidden = !display;
   if (display) label('displayMenu', displayLabel(display, S.orientation === 'landscape'));
   label('browserMenu', browser.name);
+  $('browserMenu').hidden = enabledBrowsersFor(deviceEntry).length < 2;   // nothing to choose
   $('rotate').disabled = Boolean(device.orientation);
   $('rotate').title = device.orientation ? 'This display has a fixed orientation' : 'Rotate (⌘⌃R)';
   label('uaMenu', uaById(S.userAgentId).name);
@@ -726,9 +743,10 @@ function pickDevice(id) {
   const next = deviceById(id);
   const patch = { deviceId: next.id };
 
-  // switching platform pulls the browser UI and user agent along with it
-  if (next.platform !== deviceEntry.platform) {
-    const nextBrowser = enabledBrowsersFor(next.platform)[0];
+  // switching platform, or to a device that limits its browsers, pulls the
+  // browser UI and user agent along with it
+  if (!enabledBrowsersFor(next).includes(browser)) {
+    const nextBrowser = enabledBrowsersFor(next)[0];
     patch.browserId = nextBrowser.id;
     patch.userAgentId = nextBrowser.userAgentId;
     browser = nextBrowser;
@@ -834,6 +852,7 @@ function wireUI() {
   });
 
   $('newTab').onclick = requestNewTab;
+  $('poseAction').onclick = togglePoseControls;
   bindMenus();
 
   $('rotate').onclick = rotate;

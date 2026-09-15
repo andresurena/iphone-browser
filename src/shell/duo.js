@@ -38,6 +38,36 @@ const DUO_RAIL = {
   statusPill: 82,   // the time-and-glyph capsule's width
 };
 
+/**
+ * Apple's own bezel images (Apple Design Resources, Star White), laid over the
+ * screen with the cutout left transparent. `screen` is the cutout inside the
+ * image in pixels at 3×, measured from the files; the image box around it is
+ * what the frame is padded to, so the cutout lands exactly on the page. The
+ * landscape outer image is turned 180° from Apple's so the hinge is at the top,
+ * where the guidelines' landscape diagrams put it.
+ */
+const BEZELS = {
+  'outer-portrait':  { src: 'bezels/duo-outer-portrait.png',  img: [1574, 2194], screen: [88, 80, 1398, 2034] },
+  'outer-landscape': { src: 'bezels/duo-outer-landscape.png', img: [2194, 1574], screen: [80, 88, 2034, 1398] },
+  'inner-portrait':  { src: 'bezels/duo-inner-portrait.png',  img: [2247, 3093], screen: [120, 120, 2007, 2853] },
+  'inner-landscape': { src: 'bezels/duo-inner-landscape.png', img: [3093, 2247], screen: [120, 120, 2853, 2007] },
+};
+const BEZEL_BACK = { src: 'bezels/duo-back.png', img: [1040, 1463], scale: 2 };
+
+/** The bezel image for the current display and orientation, or null. */
+function bezelFor(landscape) {
+  if (!device?.foldable) return null;
+  return BEZELS[`${device.of || device.displayId}-${landscape ? 'landscape' : 'portrait'}`] || null;
+}
+
+/** Frame padding per side, in points: the bezel image's margins around its cutout. */
+function bezelMargins(landscape) {
+  const bz = bezelFor(landscape);
+  if (!bz) { const b = device.bezel; return { t: b, r: b, b, l: b }; }
+  const [iw, ih] = bz.img; const [sx, sy, sw, sh] = bz.screen;
+  return { t: sy / 3, r: (iw - sx - sw) / 3, b: (ih - sy - sh) / 3, l: sx / 3 };
+}
+
 /* ------------------------------------------------------------- displays */
 
 /** The display chosen for a foldable, or null for a device with just one. */
@@ -136,9 +166,10 @@ function creaseOf(w, h, landscape) {
 
 function railPane(rect, edge, { status, cameraAt = null }) {
   const R = DUO_RAIL;
-  const inset = S.showChrome ? R.inset : 0;
-  const left = edge === 'left' ? inset : 0;
-  const right = edge === 'right' ? inset : 0;
+  // the rail is frosted glass over the page, not beside it (Apple's Split View
+  // still: the photo runs on under the controls) — so the page keeps the whole
+  // pane and reports the rail as its safe-area inset on that edge
+  const inset = S.showChrome ? R.inset : R.bareInset;
   return {
     ...rect,
     edge,
@@ -146,23 +177,16 @@ function railPane(rect, edge, { status, cameraAt = null }) {
     cameraAt,
     top: 0,
     bottom: 0,
-    left,
-    right,
-    viewW: rect.w - left - right,
+    left: 0,
+    right: 0,
+    viewW: rect.w,
     viewH: rect.h,
-    // With the browser UI drawn it covers the rail, so the page sees no inset,
-    // exactly as on a normal iPhone. Without it the page owns the pane and has
-    // to keep clear of the status column on the rail edge — one edge only.
-    // Safari's floating pill covers the foot of the page, and reports it —
-    // the same model as its iOS 26 capsule on any other iPhone
-    safeArea: S.showChrome
-      ? { top: 0, right: 0, bottom: browser.id === 'safari' ? DUO_RAIL.addr.height + DUO_RAIL.addr.bottom : 0, left: 0 }
-      : {
-          top: 0,
-          right: edge === 'right' ? R.bareInset : 0,
-          bottom: rect.h > rect.w ? device.homeIndicator : 21,
-          left: edge === 'left' ? R.bareInset : 0,
-        },
+    safeArea: {
+      top: 0,
+      right: edge === 'right' ? inset : 0,
+      bottom: rect.h > rect.w ? device.homeIndicator : 21,
+      left: edge === 'left' ? inset : 0,
+    },
   };
 }
 
@@ -204,7 +228,9 @@ function topPane(rect, { status, foot }) {
 function duoPanes(w, h, landscape) {
   if (!device.split) {
     const cam = cameraSpot(w, h, landscape);
-    const rect = { x: 0, y: 0, w, h };
+    // with simulated controls on the laptop's base, the page is the upper half
+    const controls = device.pose === 'laptop' && laptopControlsUrl;
+    const rect = { x: 0, y: 0, w, h: controls ? Math.floor(h / 2) : h };   // whole pixels: CDP rejects a fractional viewport
     return {
       divider: null,
       panes: [{
@@ -216,7 +242,7 @@ function duoPanes(w, h, landscape) {
               status: !(landscape && device.camera === 'corner'),
               cameraAt: cam ? cam.end : null,
             })
-          : topPane(rect, { status: true, foot: true })),
+          : topPane(rect, { status: true, foot: !controls })),
       }],
     };
   }
@@ -381,7 +407,7 @@ function railMarkup(pane, tabId) {
   const column = pane.edge === 'right' ? R.inset - R.column : R.column;
 
   return `
-    <div class="duo-rail" data-tab="${tabId ?? ''}" style="
+    <div class="duo-rail edge-${pane.edge}" data-tab="${tabId ?? ''}" style="
       left:${pane.edge === 'right' ? pane.x + pane.w - R.inset : pane.x}px;
       top:${pane.y}px; width:${R.inset}px; height:${pane.h}px">
       <div class="duo-col" style="left:${column - R.button / 2}px; width:${R.button}px;
@@ -467,6 +493,14 @@ function renderDuo(g) {
       const tabId = pane.slot === 'page' ? activeTabId : otherId;
       under += `<div class="duo-pane" style="left:${pane.x}px; top:${pane.y}px;
         width:${pane.w}px; height:${pane.h}px; border-radius:${px(pane.radii)}"></div>`;
+      // the prompt goes under the bars, which float over the whole pane
+      if (pane.slot === 'other' && otherId == null) {
+        over += `<div class="duo-empty" style="left:${pane.x + pane.left}px; top:${pane.y}px;
+          width:${pane.viewW}px; height:${pane.h}px">
+          <p>Open a second tab to see it here, side by side.</p>
+          <button class="duo-empty-btn" data-new-tab-here>New Tab</button>
+        </div>`;
+      }
       over += pane.edge ? railMarkup(pane, tabId) : topBarMarkup(pane, tabId);
       if (pane.edge && S.showChrome && tabId != null && browser.id === 'safari') {
         const A = DUO_RAIL.addr;
@@ -478,13 +512,6 @@ function renderDuo(g) {
         </div>`;
       }
 
-      if (pane.slot === 'other' && otherId == null) {
-        over += `<div class="duo-empty" style="left:${pane.x + pane.left}px; top:${pane.y}px;
-          width:${pane.viewW}px; height:${pane.h}px">
-          <p>Open a second tab to see it here, side by side.</p>
-          <button class="duo-empty-btn" data-new-tab-here>New Tab</button>
-        </div>`;
-      }
       over += cornerMasks(pane);
     }
   }
@@ -500,7 +527,7 @@ function renderDuo(g) {
       ? `<div class="duo-crease vertical" style="left:${c.at}px"></div>`
       : `<div class="duo-crease horizontal" style="top:${c.at}px"></div>`;
   }
-  if (g.camera) {
+  if (g.camera && !bezelFor(g.landscape)) {
     const c = g.camera;
     over += `<div class="duo-camera" style="left:${c.x - c.d / 2}px; top:${c.y - c.d / 2}px;
       width:${c.d}px; height:${c.d}px"></div>`;
@@ -548,15 +575,15 @@ const POSES = {
   // hinge vertical; the page on the right half, nearly flat; the left half
   // swings toward you, the way the demo of the fold animation holds it
   book:   { live: 'right', liveTilt: 'rotateY(-10deg)', awayTilt: 'rotateY(40deg)',
-            perspective: 1500, extent: { w: 0.94, h: 1.26 }, shadowAt: 1 },
+            perspective: 1500, extent: { w: 1.02, h: 1.26 }, shadowAt: 1 },
   // hinge horizontal; the page on the top half leaning back like a laptop
   // screen; the base lies flat toward you, seen from a little above
   laptop: { live: 'top',   liveTilt: 'rotateX(10deg)',  awayTilt: 'rotateX(62deg)',
             perspective: 2200, extent: { w: 1.24, h: 0.88 }, shadowAt: 0.77 },
-  // an A-frame: the outer display leans back from its base, the other half
-  // drops away behind it, peeking out one side; both hang from the hinge on top
-  tent:   { live: 'all',   liveTilt: 'rotateX(14deg)',  awayTilt: 'rotateX(-40deg) translateX(18px)',
-            perspective: 1600, extent: { w: 1.1, h: 1.04 }, shadowAt: 0.985 },
+  // an A-frame turned a little to one side, so the back shows past the edge as
+  // it does in Apple's alarm-clock photo; both halves hang from the hinge on top
+  tent:   { live: 'all',   liveTilt: 'rotateY(-14deg) rotateX(14deg)',  awayTilt: 'rotateY(-14deg) rotateX(-40deg)',
+            perspective: 1600, extent: { w: 1.14, h: 1.04 }, shadowAt: 0.985 },
 };
 
 // Skins that sit at the foot of the screen and so land on a laptop's base.
@@ -599,55 +626,57 @@ function renderPose(g) {
     glow.hidden = true;
     shadow.hidden = true;
     stopPoseSnapshots();
+    renderPoseAction();
     return;
   }
 
-  const key = JSON.stringify([device.pose, g.w, g.h, g.corners, S.showChrome, browser.id, activeTabId]);
+  const key = JSON.stringify([device.pose, g.w, g.h, S.showChrome, browser.id, activeTabId, Boolean(laptopControlsUrl)]);
   if (key === poseKey) return;
   poseKey = key;
 
-  const b = device.bezel;
-  const W = g.w + b * 2;   // the flat frame, outside edge to outside edge
-  const H = g.h + b * 2;
-  const [tl, tr, br, bl] = g.corners;
-  const px = (...v) => v.map((n) => `${n}px`).join(' ');
+  const bz = bezelMargins(g.landscape);
+  const W = g.w + bz.l + bz.r;   // the frame, outside edge to outside edge
+  const H = g.h + bz.t + bz.b;
+  const bezel = bezelFor(g.landscape);
+  const bezelImg = (left, top) => bezel
+    ? `<img class="bezel" alt="" src="${bezel.src}" style="left:${left}px; top:${top}px; width:${W}px; height:${H}px">`
+    : '';
 
   phone.classList.add('posed');
   phone.dataset.pose = device.pose;
   Object.assign(stage.style, { width: `${W}px`, height: `${H}px`, perspective: `${pose.perspective}px` });
 
   if (pose.live === 'right') {
-    // live: the frame's right half, from the hinge to its right bezel
-    const halfW = g.w / 2 + b;
+    const hingeX = bz.l + g.w / 2;
     Object.assign(live.style, {
-      left: `${g.w / 2 + b}px`, top: '0', width: `${halfW}px`, height: `${H}px`,
+      left: `${hingeX}px`, top: '0', width: `${W - hingeX}px`, height: `${H}px`,
       transformOrigin: 'left center', transform: pose.liveTilt,
     });
-    frame.style.transform = `translateX(${-(g.w / 2 + b)}px)`;
-    // away: the left half, its outer corners the device's, square at the hinge
+    frame.style.transform = `translateX(${-hingeX}px)`;
     Object.assign(away.style, {
-      left: '0', top: '0', width: `${halfW}px`, height: `${H}px`,
-      borderRadius: px(tl + b, 0, 0, bl + b),
+      left: '0', top: '0', width: `${hingeX}px`, height: `${H}px`,
       transformOrigin: 'right center', transform: pose.awayTilt,
     });
-    away.innerHTML = awayScreenMarkup(g, { left: b, top: b, width: g.w / 2, height: g.h, shiftX: 0, shiftY: 0,
-      radii: [tl, 0, 0, bl], foot: false });
+    away.innerHTML = awayScreenMarkup(g, { left: bz.l, top: bz.t, width: g.w / 2, height: g.h, shiftX: 0, shiftY: 0, foot: false })
+      + bezelImg(0, 0);
   } else if (pose.live === 'top') {
-    const halfH = g.h / 2 + b;
+    const hingeY = bz.t + g.h / 2;
     Object.assign(live.style, {
-      left: '0', top: '0', width: `${W}px`, height: `${halfH}px`,
+      left: '0', top: '0', width: `${W}px`, height: `${hingeY}px`,
       transformOrigin: 'center bottom', transform: pose.liveTilt,
     });
     frame.style.transform = '';
     Object.assign(away.style, {
-      left: '0', top: `${g.h / 2 + b}px`, width: `${W}px`, height: `${halfH}px`,
-      borderRadius: px(0, 0, br + b, bl + b),
+      left: '0', top: `${hingeY}px`, width: `${W}px`, height: `${H - hingeY}px`,
       transformOrigin: 'center top', transform: pose.awayTilt,
     });
-    away.innerHTML = awayScreenMarkup(g, { left: b, top: 0, width: g.w, height: g.h / 2, shiftX: 0, shiftY: -g.h / 2,
-      radii: [0, 0, br, bl], foot: true });
+    const base = laptopControlsUrl
+      ? `<div class="pose-clip" style="left:${bz.l}px; top:0; width:${g.w}px; height:${g.h / 2}px">
+           <img class="pose-controls" alt="" src="${laptopControlsUrl}"></div>`
+      : awayScreenMarkup(g, { left: bz.l, top: 0, width: g.w, height: g.h / 2, shiftX: 0, shiftY: -g.h / 2, foot: true });
+    away.innerHTML = base + bezelImg(0, -hingeY);
   } else {
-    // tent: the whole outer display, hanging from the hinge along its top edge
+    // tent: the whole outer display, and the device's back hanging from the same hinge
     Object.assign(live.style, {
       left: '0', top: '0', width: `${W}px`, height: `${H}px`,
       transformOrigin: 'center top', transform: pose.liveTilt,
@@ -655,21 +684,26 @@ function renderPose(g) {
     frame.style.transform = '';
     Object.assign(away.style, {
       left: '0', top: '0', width: `${W}px`, height: `${H}px`,
-      borderRadius: px(tl + b, tr + b, br + b, bl + b),
       transformOrigin: 'center top', transform: pose.awayTilt,
     });
-    away.innerHTML = '<div class="pose-back"></div>';
+    // the back image is upright with its hinge on the right; turned so the
+    // hinge is along the top, it's the same size as the outer display's frame
+    const bw = BEZEL_BACK.img[1] / BEZEL_BACK.scale;   // wide, once turned
+    const bh = BEZEL_BACK.img[0] / BEZEL_BACK.scale;
+    const iw = BEZEL_BACK.img[0] / BEZEL_BACK.scale;   // the image's own box before turning
+    const ih = BEZEL_BACK.img[1] / BEZEL_BACK.scale;
+    away.innerHTML = `<img class="pose-back-img" alt="" src="${BEZEL_BACK.src}"
+      style="width:${iw}px; height:${ih}px; left:${(W - iw) / 2}px; top:${(H - ih) / 2}px">`;
   }
   away.hidden = false;
 
-  // a tent's inner display faces the surface it stands on and lights it — in
-  // the page's own colour, the way the alarm clock's orange spills out
   glow.hidden = device.pose !== 'tent';
   shadow.hidden = false;
   Object.assign(shadow.style, { width: `${W * 1.1}px`, left: `${-W * 0.05}px`, top: `${H * pose.shadowAt - 14}px` });
   Object.assign(glow.style, { width: `${W * 1.5}px`, left: `${-W * 0.25}px`, top: `${H * 0.55}px`, height: `${H * 0.7}px` });
+  renderPoseAction();
 
-  if (pose.live === 'all') { stopPoseSnapshots(); return; }
+  if (pose.live === 'all' || (pose.live === 'top' && laptopControlsUrl)) { stopPoseSnapshots(); return; }
   // the page is re-emulated to this display just after this runs, so the first
   // picture waits for that to land; a second catches a slow reflow
   startPoseSnapshots();
@@ -682,9 +716,9 @@ function renderPose(g) {
  * part shows through the clip, holding the page picture at the page's position
  * and, on a laptop base, copies of the browser bars drawn at the foot.
  */
-function awayScreenMarkup(g, { left, top, width, height, shiftX, shiftY, radii, foot }) {
+function awayScreenMarkup(g, { left, top, width, height, shiftX, shiftY, foot }) {
   const page = g.page;
-  const r = radii.map((v) => `${v}px`).join(' ');
+  const r = '0';
   let clones = '';
   for (const el of all('#duoAbove .duo-addr:not(.wide)')) {
     const copy = el.cloneNode(true);
@@ -739,4 +773,35 @@ async function refreshPoseSnapshot() {
   } finally {
     poseSnapBusy = false;
   }
+}
+
+/* ------------------------------------------------ laptop: simulated controls
+   Netflix puts playback controls on the base while the picture plays above.
+   A site can't do that — Safari gives it no way to know the phone is folded —
+   but a designer can mock it: pick an image for the base and the page keeps the
+   upper half. Stored by the main process; see controls:* in main.js. */
+let laptopControlsUrl = null;
+
+function renderPoseAction() {
+  const btn = $('poseAction');
+  const show = device?.pose === 'laptop';
+  btn.hidden = !show;
+  if (!show) return;
+  btn.textContent = laptopControlsUrl ? 'Remove Simulated Controls' : 'Add Simulated Controls — like Netflix';
+}
+
+async function togglePoseControls() {
+  if (laptopControlsUrl) {
+    await window.bridge.clearControls();
+    laptopControlsUrl = null;
+  } else {
+    const g = geometry();
+    const pt = { w: g.w, h: Math.round(g.h / 2) };
+    const url = await window.bridge.pickControls({ pt, px: { w: pt.w * 3, h: pt.h * 3 } });
+    if (!url) return;
+    laptopControlsUrl = url;
+  }
+  poseKey = '';
+  animateSwitch();
+  layout();
 }
