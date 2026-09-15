@@ -449,7 +449,7 @@ select {
 .si.wifi .arc {
   fill: none;
   stroke: currentColor;
-  stroke-width: 2.05;
+  stroke-width: 2.35;
   stroke-linecap: round;
 }
 .si.batt .shell { fill: none; stroke: currentColor; stroke-width: 1.2; }
@@ -1084,7 +1084,10 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
 .duo-camera {
   position: absolute;
   border-radius: 50%;
-  background: radial-gradient(circle at 38% 36%, #1e2330 0, #07080b 52%, #000 100%);
+  /* a lens inside the housing: a faint inner ring and a glint */
+  background:
+    radial-gradient(circle at 40% 36%, rgba(120, 150, 210, .35) 0, transparent 22%),
+    radial-gradient(circle at 50% 50%, #0b0f1a 0 30%, #05060a 31% 46%, #000 47% 100%);
   box-shadow: 0 0 0 .5px rgba(255, 255, 255, .07);
 }
 
@@ -1135,8 +1138,8 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
 .duo-rail .duo-glyph { width: 32px; height: 32px; fill: currentColor; stroke: none; }
 .duo-rail .duo-glyph .ring,
 .duo-rail .duo-glyph .arc { fill: none; stroke: currentColor; stroke-linecap: round; }
-.duo-rail .duo-glyph .ring { stroke-width: 2.2; }
-.duo-rail .duo-glyph .arc { stroke-width: 2; }
+.duo-rail .duo-glyph .ring { stroke-width: 2.5; }
+.duo-rail .duo-glyph .arc { stroke-width: 1.85; }
 
 .duo-rail .glass {
   pointer-events: auto;
@@ -1317,4 +1320,49 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
     height var(--morph) var(--morph-ease),
     left var(--morph) var(--morph-ease),
     top var(--morph) var(--morph-ease);
+}
+
+/* Safari's address bar on a rail layout: a floating pill at the foot of the
+   pane, the page running underneath — see DUO_RAIL.addr */
+.duo-addr {
+  position: absolute;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 0 12px;
+  border-radius: 23px;
+  color: var(--ui-fg);
+  background: color-mix(in srgb, var(--ui-neutral) 66%, transparent);
+  backdrop-filter: blur(26px) saturate(180%);
+  box-shadow:
+    0 0 0 .5px color-mix(in srgb, var(--ui-fg) 12%, transparent),
+    0 8px 22px rgba(0, 0, 0, .14);
+}
+.duo-addr .gicon {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  padding: 0;
+  border-radius: 15px;
+  background: transparent;
+  color: inherit;
+  opacity: .6;
+}
+.duo-addr .gicon svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.duo-addr .host {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: 400 15px -apple-system, system-ui, sans-serif;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

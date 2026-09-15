@@ -28,6 +28,9 @@ const DUO_RAIL = {
   endMargin: 24,
   divider: 16,      // Split View: the gap between the two apps
   paneRadius: 22,   // Split View: each app window's corners on the divider side
+  // Safari keeps its address bar horizontal on a rail layout — a floating pill
+  // at the foot of the pane, beside the rail (Apple's launch event, Split View)
+  addr: { height: 46, side: 12, bottom: 14 },
 };
 
 /* ------------------------------------------------------------- displays */
@@ -139,8 +142,10 @@ function railPane(rect, edge, { status, cameraAt = null }) {
     // With the browser UI drawn it covers the rail, so the page sees no inset,
     // exactly as on a normal iPhone. Without it the page owns the pane and has
     // to keep clear of the status column on the rail edge — one edge only.
+    // Safari's floating pill covers the foot of the page, and reports it —
+    // the same model as its iOS 26 capsule on any other iPhone
     safeArea: S.showChrome
-      ? { top: 0, right: 0, bottom: 0, left: 0 }
+      ? { top: 0, right: 0, bottom: browser.id === 'safari' ? DUO_RAIL.addr.height + DUO_RAIL.addr.bottom : 0, left: 0 }
       : {
           top: 0,
           right: edge === 'right' ? R.bareInset : 0,
@@ -249,6 +254,9 @@ const RAIL_ICONS = {
   tabs: '<rect x="3.4" y="3.4" width="17.2" height="17.2" rx="4"/>',
   more: '<circle cx="5.4" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="18.6" cy="12" r="1.9"/>',
   search: '<circle cx="10.6" cy="10.6" r="6.6"/><path d="M15.4 15.4 20.4 20.4"/>',
+  book: '<path d="M12 6.2c-1.6-1.4-4-2-7.2-1.6v13.6c3.2-.4 5.6.2 7.2 1.6 1.6-1.4 4-2 7.2-1.6V4.6c-3.2-.4-5.6.2-7.2 1.6z"/><path d="M12 6.2v13.6"/>',
+  lines: '<path d="M4.5 7h15M4.5 12h15M4.5 17h15"/>',
+  tabs2: '<rect x="3.2" y="7.4" width="13.4" height="13.4" rx="3"/><path d="M7.4 7.4V6.2a3 3 0 0 1 3-3h7.4a3 3 0 0 1 3 3v7.4a3 3 0 0 1-3 3h-1.2"/>',
 };
 const railIcon = (name) => `<svg viewBox="0 0 24 24">${RAIL_ICONS[name]}</svg>`;
 
@@ -259,9 +267,9 @@ const STATUS_GLYPH = `
     <path class="ring" d="M6.81 25.19A13 13 0 1 1 25.19 25.19"/>
     <circle cx="9.5" cy="27.26" r="1.35"/><circle cx="13.74" cy="28.8" r="1.35"/>
     <circle cx="18.26" cy="28.8" r="1.35"/><circle cx="22.5" cy="27.26" r="1.35"/>
-    <path class="arc" d="M10.34 14.84A8 8 0 0 1 21.66 14.84"/>
-    <path class="arc" d="M12.82 17.32A4.5 4.5 0 0 1 19.18 17.32"/>
-    <circle cx="16" cy="20.5" r="1.4"/>
+    <path class="arc" d="M10.34 13.6A8 8 0 0 1 21.66 13.6"/>
+    <path class="arc" d="M12.82 16.1A4.5 4.5 0 0 1 19.18 16.1"/>
+    <circle cx="16" cy="19.2" r="1.4"/>
   </svg>`;
 
 /**
@@ -303,7 +311,12 @@ function railMarkup(pane, tabId) {
   let toolbar = '';
   let tabbar = '';
   // an empty Split View half has no page for its controls to act on
-  if (S.showChrome && tabId != null) {
+  if (S.showChrome && tabId != null && browser.id === 'safari') {
+    // Safari's rail, from the launch event: back and bookmarks above, new tab
+    // and tabs below, all plain round buttons; the address bar is horizontal
+    toolbar = round('data-back', 'back', 'Back') + round('', 'book', 'Bookmarks');
+    tabbar = round('data-new-tab', 'plus', 'New Tab') + round('data-tabs', 'tabs2', 'Tabs');
+  } else if (S.showChrome && tabId != null) {
     toolbar = round('data-back', 'back', 'Back');
     if (plan.toolbar === 'full') {
       toolbar += `<div class="glass capsule">${item('data-forward', 'forward', 'Forward')}${item('data-reload', 'reload', 'Reload')}</div>`;
@@ -376,7 +389,7 @@ function renderDuo(g) {
 
   const otherId = g.split ? otherTabId() : null;
   const key = JSON.stringify([g.w, g.h, g.panes, g.divider, g.camera, g.crease,
-    S.showChrome, activeTabId, otherId, tabs.length]);
+    S.showChrome, browser.id, activeTabId, otherId, tabs.length]);
   if (key === duoKey) return;
   duoKey = key;
 
@@ -390,6 +403,15 @@ function renderDuo(g) {
       under += `<div class="duo-pane" style="left:${pane.x}px; top:${pane.y}px;
         width:${pane.w}px; height:${pane.h}px; border-radius:${px(pane.radii)}"></div>`;
       over += railMarkup(pane, tabId);
+      if (S.showChrome && tabId != null && browser.id === 'safari') {
+        const A = DUO_RAIL.addr;
+        over += `<div class="duo-addr" data-tab="${tabId}" style="left:${pane.x + pane.left + A.side}px;
+          top:${pane.y + pane.h - A.bottom - A.height}px; width:${pane.viewW - A.side * 2}px; height:${A.height}px">
+          <span class="gicon">${railIcon('lines')}</span>
+          <button class="host" data-search data-addr-host>Search or enter website</button>
+          <button class="gicon" data-reload title="Reload">${railIcon('reload')}</button>
+        </div>`;
+      }
 
       if (pane.slot === 'other' && otherId == null) {
         over += `<div class="duo-empty" style="left:${pane.x + pane.left}px; top:${pane.y}px;
@@ -424,6 +446,14 @@ function renderDuo(g) {
   tickClock();
   renderTabCounts();
   syncNav();
+}
+
+/** Each pane's address pill names its own tab's site — in Split View, two different ones. */
+function paintDuoHosts() {
+  for (const el of all('.duo-addr')) {
+    const tab = tabById(Number(el.dataset.tab));
+    el.querySelector('[data-addr-host]').textContent = hostnameOf(tab?.url || '') || 'Search or enter website';
+  }
 }
 
 /* ================================================================= poses
@@ -590,6 +620,11 @@ function awayScreenMarkup(g, { left, top, width, height, shiftX, shiftY, radii, 
   const page = g.page;
   const r = radii.map((v) => `${v}px`).join(' ');
   let clones = '';
+  for (const el of all('#duoAbove .duo-addr')) {
+    const copy = el.cloneNode(true);
+    copy.classList.add('pose-copy');
+    clones += copy.outerHTML;
+  }
   if (foot) {
     for (const id of FOOT_SKINS) {
       const el = $(id);

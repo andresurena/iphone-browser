@@ -988,6 +988,7 @@ function updateChromeForActiveTab({ forceUrlInput = false } = {}) {
 
 /** Enable back/forward for the tab each set of controls acts on. */
 function syncNav() {
+  paintDuoHosts();
   const el = activeWv();
   const b = Boolean(el && nav.canBack(el));
   const f = Boolean(el && nav.canForward(el));

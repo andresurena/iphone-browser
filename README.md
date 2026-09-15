@@ -172,7 +172,10 @@ moves to the bottom-right when you turn the device; the time and a single
 Wi-Fi/signal/battery glyph beneath it; toolbar buttons at the top of the rail with
 grouped items sharing one capsule; the tab bar at the foot. When the rail runs
 short, toolbar items fold into "…" first and the tab bar collapses after, as the
-guidelines describe.
+guidelines describe. Safari's own rail, from Apple's launch event, is plainer
+still — back and bookmarks above, new tab and tabs below — and its address bar
+stays horizontal: a floating pill at the foot of each pane that the page runs
+under, which is what a page's `env(safe-area-inset-bottom)` reports.
 
 **Split View** draws both apps — two rounded windows either side of a divider —
 and the other half is your second tab, live. Click into it and it becomes the tab
