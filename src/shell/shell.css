@@ -1564,10 +1564,17 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
 .tab-compare:hover { opacity: 1; background: rgba(128, 128, 128, .25); }
 .tab-compare.active { opacity: 1; color: var(--accent); }
 
-/* The second device. Everything about it is drawn inside the FIRST device's
-   screen, which stops clipping while Compare is on so the pair can spill out
-   of it: the body goes in #duoBelow, under the pages, and the chrome in
-   #duoAbove, over them. See the header comment in compare.js for why. */
+/* The second device. Its page and chrome are drawn inside the FIRST device's
+   screen, which clips to BOTH screens at once via a clip-path set in
+   compare.js. The clip is what keeps the first device's own status bar and
+   home indicator inside its bezel curve — letting .screen stop clipping
+   instead spills those square corners out over the frame. The second device's
+   BODY has to sit outside that clip, which is why it lives in #compareBody,
+   beside the frame rather than inside the screen.
+
+   overflow has to give way for the second page to be visible at all, since it
+   sits a device-width outside this element. The clip-path takes over the job
+   it was doing, for both devices at once. */
 #phone.compare .screen { overflow: visible; }
 
 .compare-body { position: absolute; pointer-events: auto; }

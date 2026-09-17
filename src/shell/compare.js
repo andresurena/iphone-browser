@@ -18,14 +18,19 @@
    other one: here, clicking a page to drive it from the toolbar moves the
    focus ring and nothing else, so the two never trade places under your hands.
 
-   How the second device is drawn: inside the FIRST device's screen element,
-   which stops clipping while Compare is on. Its body goes in #duoBelow (the
-   layer painted under the pages) and its status bar, browser skin, island and
-   home indicator are cloned into #duoAbove (painted over them), both shifted
-   right by one device width. That reuses the layering that's already correct
-   rather than building a second screen whose page could never be stacked
-   properly — a <webview> reloads if it's ever moved in the DOM, so every tab's
-   page has to stay in the one container it was created in.
+   How the second device is drawn: a <webview> reloads if it's ever moved in
+   the DOM, so every tab's page has to stay in the one #webviews container it
+   was created in — there can be no second .screen to put the second page in.
+   So the second device is drawn around that one screen instead. Its body goes
+   in #compareBody, a sibling of the frame, and its status bar, browser skin,
+   island and home indicator are cloned into #duoAbove, the layer painted over
+   the pages, shifted right by one device width.
+
+   .screen then clips to BOTH screens at once with a clip-path holding two
+   rounded rectangles. It can't simply stop clipping: everything drawn on the
+   first device — its status bar, its browser bars, its home indicator — is a
+   child of .screen too, and without a clip those square corners spill out over
+   the bezel's curve.
 
    A classic script loaded before shell.js — shares its globals (S, device,
    tabs, activeTabId, phone, …) the same way duo.js and popover.js do. */
@@ -121,16 +126,17 @@ function compareGeometry(shared) {
 const COMPARE_OVERLAYS = '.statusbar.on, .ui.on, .island, .homebar';
 
 /**
- * The second phone's body — the same titanium frame and side buttons, drawn
- * beneath the pages. The buttons are laid out against #phone's own origin,
- * which is exactly where this wrapper sits for the second device, so the same
- * rules place them correctly here without a word of extra CSS.
+ * The second phone's body — the same titanium frame and side buttons. It sits
+ * outside .screen, so it's measured from #phone's own origin, which is where
+ * the FIRST frame's outside edge is. One device width to the right puts it
+ * exactly where the second frame belongs, and the side buttons' own rules then
+ * place them correctly without a word of extra CSS.
  */
-function compareBody(g, bz) {
+function compareBody(g) {
   const body = document.createElement('div');
   body.className = 'compare-body';
-  body.style.left = `${g.offsetX - bz.l}px`;
-  body.style.top = `${-bz.t}px`;
+  body.style.left = `${g.offsetX}px`;
+  body.style.top = '0';
   // same order as the real phone: buttons behind, frame over them
   for (const btn of phone.querySelectorAll(':scope > .btn')) {
     body.append(btn.cloneNode(false));
@@ -209,6 +215,38 @@ function paintCompareFrame() {
   far?.classList.toggle('is-active', compareRightId === activeTabId);
 }
 
+/** One rounded rectangle, corners clockwise from the top left. */
+function rrectPath(x, y, w, h, [tl, tr, br, bl]) {
+  const arc = (r, ex, ey) => (r ? `A${r},${r} 0 0 1 ${ex},${ey}` : `L${ex},${ey}`);
+  return `M${x + tl},${y}`
+    + `L${x + w - tr},${y}` + arc(tr, x + w, y + tr)
+    + `L${x + w},${y + h - br}` + arc(br, x + w - br, y + h)
+    + `L${x + bl},${y + h}` + arc(bl, x, y + h - bl)
+    + `L${x},${y + tl}` + arc(tl, x + tl, y)
+    + 'Z';
+}
+
+/**
+ * Clip .screen to the screen shape, and in Compare to both screens at once —
+ * two subpaths in one clip-path is a union, so each device keeps its own
+ * rounded corners and the gap between them shows the stage behind.
+ *
+ * This is set even with Compare off, where it only repeats what the element's
+ * own border-radius and overflow already describe. It repeats it because a
+ * <webview> is a composited guest view: an ancestor's rounded overflow does not
+ * reliably clip one on the live compositor, though it does in a software
+ * screenshot — which is why square corners spilling over the bezel only ever
+ * showed up on screen and never in a capture. A clip-path is applied to the
+ * layer itself, so the corners hold.
+ */
+function setScreenClip(g) {
+  const screen = $('liveHalf').querySelector('.frame > .screen');
+  if (!screen) return;
+  const near = rrectPath(0, 0, g.w, g.h, g.corners);
+  const far = g.compare ? ' ' + rrectPath(g.offsetX, 0, g.w, g.h, g.corners) : '';
+  screen.style.clipPath = `path('${near}${far}')`;
+}
+
 let compareKey = '';
 
 /**
@@ -219,7 +257,10 @@ let compareKey = '';
 function renderCompare(g) {
   const below = $('duoBelow');
   const above = $('duoAbove');
+  const bodyHost = $('compareBody');
+  setScreenClip(g);
   if (!g.compare) {
+    if (bodyHost.firstChild) bodyHost.replaceChildren();
     // renderDuo shares these layers and has already had its turn this
     // layout — only clear what's there if it wasn't the one that drew it
     if (compareKey) {
@@ -238,7 +279,8 @@ function renderCompare(g) {
 
   if (key !== compareKey) {
     compareKey = key;
-    below.replaceChildren(compareBody(g, bz));
+    bodyHost.replaceChildren(compareBody(g));
+    below.replaceChildren();
     above.replaceChildren(compareOverlay(g, right));
     renderTabs();   // the tab strip marks which tab is on the second device
   }

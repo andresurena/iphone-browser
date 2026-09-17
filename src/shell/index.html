@@ -59,6 +59,12 @@
         <span class="btn power"></span>
         <span class="btn camera"></span>
 
+        <!-- Compare's second device: its body only, drawn here rather than
+             inside .screen because .screen clips to the screens themselves and
+             would cut the bezel off. Before #pose so it paints under the page
+             that sits over it. See compare.js. -->
+        <div id="compareBody"></div>
+
         <!-- #pose and #liveHalf are inert wrappers until a foldable is put in a
              pose (see renderPose in duo.js): then #pose is the perspective
              stage, #liveHalf clips the frame to the half you're looking at and
