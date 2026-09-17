@@ -231,20 +231,20 @@ function duoPanes(w, h, landscape) {
     // with simulated controls on the laptop's base, the page is the upper half
     const controls = device.pose === 'laptop' && laptopControlsUrl;
     const rect = { x: 0, y: 0, w, h: controls ? Math.floor(h / 2) : h };   // whole pixels: CDP rejects a fractional viewport
-    return {
-      divider: null,
-      panes: [{
-        slot: 'page',
-        radii: null,
-        ...(usesRail(landscape)
-          ? railPane(rect, 'right', {
-              // iOS drops the status bar with the outer display turned, as on any iPhone
-              status: !(landscape && device.camera === 'corner'),
-              cameraAt: cam ? cam.end : null,
-            })
-          : topPane(rect, { status: true, foot: !controls })),
-      }],
+    const pane = {
+      slot: 'page',
+      radii: null,
+      ...(usesRail(landscape)
+        ? railPane(rect, 'right', {
+            // iOS drops the status bar with the outer display turned, as on any iPhone
+            status: !(landscape && device.camera === 'corner'),
+            cameraAt: cam ? cam.end : null,
+          })
+        : topPane(rect, { status: true, foot: !controls })),
     };
+    // the page carries the display's own corners — see pageRadii in shell.js
+    pane.radii = pageRadii(pane, screenCorners(landscape), w, h);
+    return { divider: null, panes: [pane] };
   }
 
   const { divider: gap, paneRadius: r } = DUO_RAIL;

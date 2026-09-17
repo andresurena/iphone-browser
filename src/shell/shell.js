@@ -310,10 +310,12 @@ function renderTabCounts() {
    through barGeometry(), foldable displays with a vertical rail through
    duoPanes() in duo.js. */
 function geometry() {
-  // a pose fixes the orientation: the hinge is what makes it a book or a laptop
-  const landscape = device.orientation
-    ? device.orientation === 'landscape'
-    : S.orientation === 'landscape';
+  // Compare is upright only — two phones turned on their sides have to shrink
+  // so far to fit that neither page is worth looking at. A pose fixes the
+  // orientation too: the hinge is what makes it a book or a laptop.
+  const landscape = compareActive() ? false
+    : device.orientation ? device.orientation === 'landscape'
+      : S.orientation === 'landscape';
   const w = landscape ? device.height : device.width;
   const h = landscape ? device.width : device.height;
 
@@ -372,6 +374,15 @@ function barGeometry(shared) {
       : { top: device.statusBar, right: 0, bottom: device.homeIndicator, left: 0 };
 
   const front = device.front;
+  const page = {
+    slot: 'page', x: 0, y: 0, w, h, radii: null,
+    top, bottom, left: side, right: side,
+    viewW: w - side * 2,
+    viewH: h - top - bottom,
+    safeArea,
+  };
+  page.radii = pageRadii(page, shared.corners, w, h);
+
   return {
     ...shared,
     duo: false,
@@ -385,13 +396,7 @@ function barGeometry(shared) {
     frontH: landscape ? front.w ?? front.d ?? 0 : front.h ?? front.d ?? 0,
     frontTop: front.top,
     divider: null,
-    panes: [{
-      slot: 'page', x: 0, y: 0, w, h, radii: null,
-      top, bottom, left: side, right: side,
-      viewW: w - side * 2,
-      viewH: h - top - bottom,
-      safeArea,
-    }],
+    panes: [page],
   };
 }
 
@@ -555,6 +560,30 @@ function placeWebviews(g) {
       borderRadius: contentRadii(pane),
     });
   }
+}
+
+/**
+ * A page's own corner radii, matching the screen's — but only on a corner the
+ * page actually reaches, since a bar across the top starts it below the curve.
+ *
+ * The page has to carry these itself rather than leaning on .screen's rounded
+ * overflow: a <webview> is a composited guest view, and an ancestor's
+ * border-radius doesn't reliably clip one on the live compositor. It does clip
+ * in a software-composited screenshot, which is why square page corners poking
+ * through the bezel curve only ever show up on screen, never in a capture.
+ */
+function pageRadii(pane, corners, w, h) {
+  const x0 = pane.x + pane.left;
+  const y0 = pane.y + pane.top;
+  const x1 = x0 + pane.viewW;
+  const y1 = y0 + pane.viewH;
+  const [tl, tr, br, bl] = corners;
+  return [
+    y0 === 0 && x0 === 0 ? tl : 0,
+    y0 === 0 && x1 === w ? tr : 0,
+    y1 === h && x1 === w ? br : 0,
+    y1 === h && x0 === 0 ? bl : 0,
+  ];
 }
 
 /** A Split View pane's rounded corners, minus the ones its rail covers. */
@@ -776,8 +805,10 @@ function paintMenus() {
   if (display) label('displayMenu', displayLabel(display, S.orientation === 'landscape'));
   label('browserMenu', browser.name);
   $('browserMenu').hidden = enabledBrowsersFor(deviceEntry).length < 2;   // nothing to choose
-  $('rotate').disabled = Boolean(device.orientation);
-  $('rotate').title = device.orientation ? 'This display has a fixed orientation' : 'Rotate (⌘⌃R)';
+  $('rotate').disabled = Boolean(device.orientation) || compareActive();
+  $('rotate').title = compareActive() ? 'Compare is upright only'
+    : device.orientation ? 'This display has a fixed orientation'
+      : 'Rotate (⌘⌃R)';
   label('uaMenu', uaById(S.userAgentId).name);
   label('zoomMenu', (ZOOMS.find((z) => z.value === S.zoom) || ZOOMS[0]).label);
 
@@ -958,6 +989,7 @@ function wireUI() {
 }
 
 function rotate() {
+  if (compareActive()) { toast('Compare is upright only — turn it off to rotate.'); return; }
   if (device.orientation) { toast('This display has a fixed orientation — pick another to rotate.'); return; }
   set({ orientation: S.orientation === 'portrait' ? 'landscape' : 'portrait' });
 }

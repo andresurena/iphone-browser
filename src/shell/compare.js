@@ -92,25 +92,11 @@ function setCompareTab(id) {
 /* -------------------------------------------------------------- geometry */
 
 /**
- * The page's corners follow the screen's, but only on a corner it actually
- * reaches — a bar across the top means the page starts below the curve, square.
- * Needed because .screen stops clipping while Compare is on (see the CSS): the
- * rounding the screen used to do for free now has to be on the page itself.
- */
-function compareRadii(pane, corners) {
-  const [tl, tr, br, bl] = corners;
-  return [
-    !pane.top && !pane.left ? tl : 0,
-    !pane.top && !pane.right ? tr : 0,
-    !pane.bottom && !pane.right ? br : 0,
-    !pane.bottom && !pane.left ? bl : 0,
-  ];
-}
-
-/**
  * Two whole phones: the ordinary single-page geometry, plus a second pane of
  * exactly the same size one device-width to the right. Both pages get the full
- * viewport — nothing about either is halved.
+ * viewport — nothing about either is halved. The second phone is the same
+ * model, so it reuses the first pane's corner radii rather than recomputing
+ * them against its own offset origin.
  */
 function compareGeometry(shared) {
   // settled here, before anything reads the pair: geometry() runs first in
@@ -119,17 +105,13 @@ function compareGeometry(shared) {
   const g = barGeometry(shared);
   const bz = bezelMargins(shared.landscape);
   const page = g.panes[0];
-  const radii = compareRadii(page, shared.corners);
   const offsetX = bz.l + shared.w + bz.r + COMPARE_GAP;
 
   return {
     ...g,
     compare: true,
     offsetX,
-    panes: [
-      { ...page, radii },
-      { ...page, slot: 'other', x: offsetX, radii },
-    ],
+    panes: [page, { ...page, slot: 'other', x: offsetX }],
   };
 }
 

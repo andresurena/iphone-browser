@@ -167,6 +167,40 @@ const IPHONE_DUO = {
 const DEVICES = [
   IPHONE_DUO,
   {
+    // Announced 9 Sept 2026, on sale 18 Sept. Apple's published panel is
+    // 2868 x 1320 at 460ppi, which is the 17 Pro Max's exactly — so the page
+    // sees the same 440 x 956 at 3x, and the insets carry over with it. The
+    // 17 Pro and 17 Pro Max were discontinued the day this was announced.
+    id: 'iphone-18-pro-max',
+    name: 'iPhone 18 Pro Max',
+    platform: 'ios',
+    width: 440,
+    height: 956,
+    dpr: 3,
+    bezel: 9,
+    screenRadius: 55,
+    front: ISLAND,
+    buttons: 'iphone',
+    statusBar: 62,
+    homeIndicator: 34,
+    landscapeSafeArea: IOS_LANDSCAPE_SAFE,
+  },
+  {
+    id: 'iphone-18-pro',
+    name: 'iPhone 18 Pro',
+    platform: 'ios',
+    width: 402,
+    height: 874,        // Apple's 2622 x 1206 panel at 3x
+    dpr: 3,
+    bezel: 9,
+    screenRadius: 55,
+    front: ISLAND,
+    buttons: 'iphone',
+    statusBar: 62,
+    homeIndicator: 34,
+    landscapeSafeArea: IOS_LANDSCAPE_SAFE,
+  },
+  {
     id: 'iphone-17-pro-max',
     name: 'iPhone 17 Pro Max',
     platform: 'ios',
