@@ -270,10 +270,10 @@ function renderTabs() {
     label.textContent = t.title || (t.url ? hostnameOf(t.url) : 'New Tab');
     btn.appendChild(label);
 
-    if (S.compare && !device.foldable && t.id !== activeTabId) {
+    if (S.compare && !device.foldable && t.id !== comparePageId()) {
       const cmp = document.createElement('span');
       cmp.className = 'tab-compare' + (t.id === cmpId ? ' active' : '');
-      cmp.title = t.id === cmpId ? 'Comparing this tab' : 'Compare this tab side by side';
+      cmp.title = t.id === cmpId ? 'On the second device' : 'Show this tab on the second device';
       cmp.innerHTML = '<svg viewBox="0 0 16 16"><rect x="2" y="3" width="5.2" height="10" rx="1.4"/>'
         + '<rect x="8.8" y="3" width="5.2" height="10" rx="1.4"/></svg>';
       cmp.onclick = (e) => { e.stopPropagation(); setCompareTab(t.id); };
@@ -437,8 +437,8 @@ function layout() {
   const barKind = device.foldable ? 'duo' : device.platform;
   for (const [platform, el] of Object.entries(STATUS_BARS)) {
     el.classList.toggle('on', platform === barKind && g.statusH > 0);
-    el.classList.toggle('tinted', S.showChrome && !g.compare);
-    el.classList.toggle('neutral', S.showChrome && !g.compare && browser.statusTint === 'neutral');
+    el.classList.toggle('tinted', S.showChrome);
+    el.classList.toggle('neutral', S.showChrome && browser.statusTint === 'neutral');
   }
 
   // one browser skin per browser + orientation
@@ -461,7 +461,8 @@ function layout() {
   // it actually projects to, measured, and shifted so that box — not the flat
   // frame it started as — is what gets centred.
   const bounds = poseBounds();
-  const bodyW = g.w + bz.l + bz.r;
+  // Compare stands a second phone beside the first — the pair is what gets fitted
+  const bodyW = g.w + bz.l + bz.r + (g.compare ? g.offsetX : 0);
   const bodyH = g.h + bz.t + bz.b;
   const fitW = bounds ? bounds.w : bodyW;
   const fitH = bounds ? bounds.h : bodyH;
@@ -534,8 +535,11 @@ function reportPageRects() {
  */
 function placeWebviews(g) {
   const otherId = g.split ? otherTabId() : (g.compare ? compareOtherId() : null);
+  // Compare pins a tab to each device, so which one is active doesn't decide
+  // which device it's on — otherwise clicking a page would swap the two
+  const pageId = g.compare ? comparePageId() : activeTabId;
   for (const t of tabs) {
-    const pane = t.id === activeTabId
+    const pane = t.id === pageId
       ? g.panes.find((p) => p.slot === 'page')
       : (t.id === otherId ? g.panes.find((p) => p.slot === 'other') : null);
 
@@ -562,11 +566,11 @@ function contentRadii(pane) {
   return r.map((v) => `${v}px`).join(' ');
 }
 
-function activeSkins({ landscape, duo, compare }) {
-  // a foldable's own bars stand in for the browser's (drawn in duo.js); no
-  // single skin can span two different pages, so Compare draws its own
-  // compact bar over the right pane instead (see compare.js)
-  if (!S.showChrome || duo || compare) return [];
+function activeSkins({ landscape, duo }) {
+  // a foldable's own bars stand in for the browser's (drawn in duo.js).
+  // Compare keeps the skin: each of its devices is a whole phone, and the
+  // second one gets its own copy of these (see compare.js)
+  if (!S.showChrome || duo) return [];
   switch (browser.id) {
     case 'chrome-android': return [SKINS.chromeAndroid, SKINS.chromeNav];
     case 'chrome-ios':     return [SKINS.chromeIosTop, SKINS.chromeIosBot];
@@ -780,7 +784,7 @@ function paintMenus() {
   $('compare').disabled = Boolean(device.foldable);
   $('compare').title = device.foldable
     ? 'Not available on iPhone Duo \u2014 its Split View already shows two tabs'
-    : 'Compare two tabs side by side (\u2318\u21e7C)';
+    : 'Compare two devices side by side (\u2318\u21e7C)';
   $('compare').classList.toggle('on', Boolean(S.compare) && !device.foldable);
 }
 
@@ -884,8 +888,8 @@ function wireUI() {
     const el = (railTab || activeTab())?.el;
 
     // Duo's own Split View creates the tab already focused into that half;
-    // Compare's empty pane just opens an ordinary tab — the auto-pick in
-    // renderCompare() slots whichever tab isn't active into the right pane.
+    // Compare's empty device just opens an ordinary tab — syncComparePair()
+    // then gives the newly active tab the device that was standing empty.
     if (control.hasAttribute('data-new-tab-here')) return (S.compare ? requestNewTab : openTabInOtherHalf)();
     if (control.hasAttribute('data-new-tab')) return requestNewTab();
     if (!el) return;
@@ -980,15 +984,17 @@ function paintSchemeButton() {
 function attachWebviewListeners(el, tabId) {
   el.addEventListener('dom-ready', () => {
     applyEmulationTo(el);
-    if (tabId === activeTabId) sampleTheme(el);
+    // in Compare the second device is tinted by its own page, so a tab that
+    // isn't the active one still needs sampling
+    if (tabId === activeTabId || S.compare) sampleTheme(el);
   });
 
-  // Clicking into the other half of Duo's Split View makes it the tab you're
-  // working in — its panes are meant to swap like real multitasking. Compare
-  // mode deliberately doesn't do this (see compare.js): its panes stay put so
-  // you can poke around each page without them jumping sides.
+  // Clicking into a page makes it the tab the toolbar drives — Duo's Split
+  // View panes swap over like real multitasking, while Compare's two devices
+  // stay put (its pair is sticky; see syncComparePair in compare.js).
   el.addEventListener('focus', () => {
-    if (tabId !== activeTabId && el.classList.contains('shown') && device.split) activateTab(tabId);
+    if (tabId === activeTabId || !el.classList.contains('shown')) return;
+    if (device.split || S.compare) activateTab(tabId);
   });
 
   el.addEventListener('did-start-loading', () => {
@@ -997,7 +1003,10 @@ function attachWebviewListeners(el, tabId) {
 
   el.addEventListener('did-stop-loading', () => {
     syncNav();
-    if (tabId !== activeTabId) return;
+    if (tabId !== activeTabId) {
+      if (S.compare) { sampleTheme(el); paintCompareFrame(); }
+      return;
+    }
     $('spinner').hidden = true;
     sampleTheme(el);
     if (device.pose) setTimeout(refreshPoseSnapshot, 150);
@@ -1065,17 +1074,30 @@ function updateChromeForActiveTab({ forceUrlInput = false } = {}) {
   }
   $('lock').hidden = !/^https:/.test(url);
 
-  const host = hostnameOf(url);
-  for (const el of all('[data-host]')) el.textContent = host;
-  for (const el of all('[data-host-or-placeholder]')) el.textContent = host || 'Search Google or type URL';
-  for (const el of all('[data-host-or-search]')) el.textContent = host || 'Search or enter website';
-
+  paintDeviceHosts();
   syncNav();
+}
+
+/**
+ * The bars drawn on the phone name the page THAT phone is showing, which in
+ * Compare isn't always the active tab — the app toolbar follows the active
+ * one, the device below follows itself. The second device's own copies are
+ * painted by paintCompareFrame (see compare.js), so they're left alone here.
+ */
+function paintDeviceHosts() {
+  const tab = S.compare ? tabById(comparePageId()) : activeTab();
+  const host = hostnameOf(tab?.url || '');
+  const mine = (sel) => all(sel).filter((el) => !el.closest('.compare-overlay'));
+  for (const el of mine('[data-host]')) el.textContent = host;
+  for (const el of mine('[data-host-or-placeholder]')) el.textContent = host || 'Search Google or type URL';
+  for (const el of mine('[data-host-or-search]')) el.textContent = host || 'Search or enter website';
 }
 
 /** Enable back/forward for the tab each set of controls acts on. */
 function syncNav() {
   paintDuoHosts();
+  // in Compare either device can be the one that just navigated
+  if (S.compare) { paintDeviceHosts(); paintCompareFrame(); }
   const el = activeWv();
   const b = Boolean(el && nav.canBack(el));
   const f = Boolean(el && nav.canForward(el));
@@ -1110,11 +1132,34 @@ async function sampleTheme(el) {
 
   const rgb = firstOpaque([sampled?.theme, sampled?.body, sampled?.html]) || [255, 255, 255];
   const luminance = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255;
-  const light = luminance > 0.55;
 
-  phone.style.setProperty('--bar-fg', light ? '#000' : '#fff');
-  phone.style.setProperty('--bar-bg', `rgba(${rgb.join(',')}, .82)`);
-  phone.style.setProperty('--bar-solid', `rgb(${rgb.join(',')})`);
+  // kept per tab, not just applied: in Compare each device is tinted by the
+  // page it's actually showing, which isn't always the active one
+  const tab = tabOf(el);
+  if (tab) {
+    tab.theme = {
+      fg: luminance > 0.55 ? '#000' : '#fff',
+      bg: `rgba(${rgb.join(',')}, .82)`,
+      solid: `rgb(${rgb.join(',')})`,
+    };
+  }
+  paintBarThemes();
+}
+
+const DEFAULT_BAR_THEME = { fg: '#fff', bg: 'rgba(0, 0, 0, .82)', solid: '#000' };
+
+function applyBarTheme(el, theme) {
+  const t = theme || DEFAULT_BAR_THEME;
+  el.style.setProperty('--bar-fg', t.fg);
+  el.style.setProperty('--bar-bg', t.bg);
+  el.style.setProperty('--bar-solid', t.solid);
+}
+
+/** #phone carries the tint of whichever page the first device shows. */
+function paintBarThemes() {
+  const shown = S.compare ? tabById(comparePageId()) : activeTab();
+  applyBarTheme(phone, shown?.theme);
+  paintCompareFrame();
 }
 
 /**
@@ -1164,11 +1209,16 @@ function parseColor(value) {
 }
 
 /* ---------------------------------------------------------- utilities */
+const clockNow = () =>
+  new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
 function tickClock() {
-  const now = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const now = clockNow();
   $('clockIos').textContent = now;
   $('clockAndroid').textContent = now;
   for (const el of all('[data-clock]')) el.textContent = now;
+  // the second device in Compare carries copies of these (see compare.js)
+  for (const el of all('.compare-overlay .statusbar .time')) el.textContent = now;
 }
 
 function loadImage(src) {

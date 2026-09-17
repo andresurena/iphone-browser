@@ -310,7 +310,8 @@ function followSplitFocus(nextId) {
  */
 function paneForTab(tabId, g) {
   const other = g.split ? otherTabId() : (g.compare ? compareOtherId() : null);
-  const slot = other != null && tabId !== activeTabId && tabId === other ? 'other' : 'page';
+  const page = g.compare ? comparePageId() : activeTabId;
+  const slot = other != null && tabId !== page && tabId === other ? 'other' : 'page';
   return g.panes.find((p) => p.slot === slot) || g.panes[0];
 }
 

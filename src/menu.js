@@ -82,7 +82,7 @@ module.exports = function buildMenu(getWin) {
         { label: 'Show Browser Interface', accelerator: 'Cmd+Shift+B', click: to('menu:toggle-chrome') },
         { label: 'Show Technical Info', accelerator: 'Cmd+/', click: to('menu:toggle-meta') },
         {
-          label: 'Compare Two Tabs Side by Side',
+          label: 'Compare Two Devices Side by Side',
           accelerator: 'Cmd+Shift+C',
           click: to('menu:toggle-compare'),
         },
