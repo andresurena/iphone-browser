@@ -302,9 +302,16 @@ function followSplitFocus(nextId) {
   device = resolveDevice(deviceEntry);
 }
 
+/**
+ * Which pane a tab belongs in — resolved the same way whether the second pane
+ * came from Duo's own Split View (g.split) or the generic Compare mode
+ * (g.compare, see compare.js): whichever supplied it names who's in the
+ * "other" slot, everything else defaults to "page".
+ */
 function paneForTab(tabId, g) {
-  const slot = g.split && tabId !== activeTabId && tabId === otherTabId() ? 'other' : 'page';
-  return g.panes.find((p) => p.slot === slot);
+  const other = g.split ? otherTabId() : (g.compare ? compareOtherId() : null);
+  const slot = other != null && tabId !== activeTabId && tabId === other ? 'other' : 'page';
+  return g.panes.find((p) => p.slot === slot) || g.panes[0];
 }
 
 /** The empty half's "New Tab" button: open a tab right there and focus it. */

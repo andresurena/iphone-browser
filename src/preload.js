@@ -19,6 +19,8 @@ const MENU_CHANNELS = [
   'menu:new-tab',
   'menu:close-tab',
   'menu:settings',
+  'menu:clear-browsing-data',
+  'menu:toggle-compare',
 ];
 
 contextBridge.exposeInMainWorld('bridge', {
@@ -37,6 +39,8 @@ contextBridge.exposeInMainWorld('bridge', {
   clearControls: () => ipcRenderer.invoke('controls:clear'),
   getOpenAtLogin: () => ipcRenderer.invoke('login:get'),
   setOpenAtLogin: (on) => ipcRenderer.invoke('login:set', on),
+  clearBrowsingData: () => ipcRenderer.invoke('browsing:clear'),
+  closeWindow: () => ipcRenderer.invoke('window:close'),
 
   onMenu: (handler) => {
     for (const channel of MENU_CHANNELS) {

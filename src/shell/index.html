@@ -44,6 +44,8 @@
     <button id="newTab" class="tab-add" title="New Tab (⌘T) — up to 4 at a time">
       <svg viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg>
     </button>
+    <span class="tab-cap">Max 4 tabs</span>
+    <button id="tabInfo" class="tab-info" title="Why the limit?" aria-label="Why the limit on tabs?">i</button>
   </div>
 
   <!-- ---------------------------------------------------------- stage -->
@@ -309,6 +311,12 @@
         <path d="M10.4 11.8 12.5 10.6 12.5 13"/>
       </svg>
     </button>
+    <button id="compare" class="icon" title="Compare two tabs side by side (⌘⇧C)">
+      <svg viewBox="0 0 16 16">
+        <rect x="1.5" y="2.5" width="5.6" height="11" rx="1.6"/>
+        <rect x="8.9" y="2.5" width="5.6" height="11" rx="1.6"/>
+      </svg>
+    </button>
     <button id="chrome" class="icon" title="Show browser interface (⌘⇧B)">
       <svg viewBox="0 0 16 16">
         <rect x="3.5" y="1.8" width="9" height="12.4" rx="2"/>
@@ -387,6 +395,13 @@
           </span>
           <input id="setAdvanced" type="checkbox" class="switch" />
         </label>
+        <div class="settings-row">
+          <span class="row-text">
+            <span class="row-title">Browsing Data</span>
+            <span class="row-hint">Clears cookies, cache, local storage and site data for every tab — useful when a site's showing something stale while you're testing.</span>
+          </span>
+          <button id="clearDataBtn" class="settings-clear-btn">Clear…</button>
+        </div>
       </section>
 
       <section class="settings-pane" data-pane="devices" role="tabpanel" hidden>
@@ -411,6 +426,7 @@
 
   <script src="popover.js"></script>
   <script src="duo.js"></script>
+  <script src="compare.js"></script>
   <script src="settings.js"></script>
   <script src="shell.js"></script>
 </body>

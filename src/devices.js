@@ -363,6 +363,7 @@ const DEFAULTS = {
   restoreLast: true,       // reopen on the last device used, or on startDeviceId
   startDeviceId: 'iphone-16-pro-max',
   advanced: false,         // shows the Profile (user agent) menu and Web Inspector button
+  compare: false,          // two tabs side by side — see compare.js
 };
 
 const byId = (list, id, fallback) => list.find((d) => d.id === id) || fallback || list[0];

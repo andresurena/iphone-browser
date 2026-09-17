@@ -256,11 +256,12 @@ function renderTabs() {
   tabsEl.innerHTML = '';
   const onlyTab = tabs.length === 1;
   const otherId = otherTabId();
+  const cmpId = compareOtherId();
 
   for (const t of tabs) {
     const btn = document.createElement('button');
     btn.className = 'tab' + (t.id === activeTabId ? ' active' : '') + (onlyTab ? ' only-tab' : '')
-      + (t.id === otherId ? ' beside' : '');
+      + (t.id === otherId || t.id === cmpId ? ' beside' : '');
     btn.title = t.title || t.url || 'New Tab';
     btn.onclick = () => { if (t.id !== activeTabId) activateTab(t.id); };
 
@@ -268,6 +269,16 @@ function renderTabs() {
     label.className = 'label';
     label.textContent = t.title || (t.url ? hostnameOf(t.url) : 'New Tab');
     btn.appendChild(label);
+
+    if (S.compare && !device.foldable && t.id !== activeTabId) {
+      const cmp = document.createElement('span');
+      cmp.className = 'tab-compare' + (t.id === cmpId ? ' active' : '');
+      cmp.title = t.id === cmpId ? 'Comparing this tab' : 'Compare this tab side by side';
+      cmp.innerHTML = '<svg viewBox="0 0 16 16"><rect x="2" y="3" width="5.2" height="10" rx="1.4"/>'
+        + '<rect x="8.8" y="3" width="5.2" height="10" rx="1.4"/></svg>';
+      cmp.onclick = (e) => { e.stopPropagation(); setCompareTab(t.id); };
+      btn.appendChild(cmp);
+    }
 
     const close = document.createElement('span');
     close.className = 'close';
@@ -328,7 +339,9 @@ function geometry() {
         frontW: 0, frontH: 0, frontTop: 0,
         ...duoPanes(w, h, landscape),
       }
-    : barGeometry(shared);
+    : compareActive()
+      ? compareGeometry(shared)
+      : barGeometry(shared);
 
   const page = g.panes.find((p) => p.slot === 'page');
   return { ...g, page, viewW: page.viewW, viewH: page.viewH, safeArea: page.safeArea };
@@ -364,6 +377,7 @@ function barGeometry(shared) {
     duo: false,
     rail: false,
     split: false,
+    compare: false,
     statusH, top, bottom, left: side, right: side, floating,
     // ?? not ||: an under-display camera is a real 0, and `0 || undefined`
     // would emit "undefinedpx" and quietly void every calc() that uses it
@@ -392,6 +406,7 @@ function layout() {
   phone.classList.toggle('no-front', device.front.type === 'none');
   phone.classList.toggle('rail', g.rail);
   phone.classList.toggle('split', g.split);
+  phone.classList.toggle('compare', g.compare);
   phone.classList.toggle('hinge-left', g.hinge === 'left');
   phone.classList.toggle('hinge-top', g.hinge === 'top');
 
@@ -422,8 +437,8 @@ function layout() {
   const barKind = device.foldable ? 'duo' : device.platform;
   for (const [platform, el] of Object.entries(STATUS_BARS)) {
     el.classList.toggle('on', platform === barKind && g.statusH > 0);
-    el.classList.toggle('tinted', S.showChrome);
-    el.classList.toggle('neutral', S.showChrome && browser.statusTint === 'neutral');
+    el.classList.toggle('tinted', S.showChrome && !g.compare);
+    el.classList.toggle('neutral', S.showChrome && !g.compare && browser.statusTint === 'neutral');
   }
 
   // one browser skin per browser + orientation
@@ -439,6 +454,7 @@ function layout() {
 
   placeWebviews(g);
   renderDuo(g);
+  renderCompare(g);
   renderPose(g);
 
   // fit-to-window or a fixed percentage. A posed device is fitted to the box
@@ -517,7 +533,7 @@ function reportPageRects() {
  * pane, and in Split View the other open tab beside it. Everything else hides.
  */
 function placeWebviews(g) {
-  const otherId = g.split ? otherTabId() : null;
+  const otherId = g.split ? otherTabId() : (g.compare ? compareOtherId() : null);
   for (const t of tabs) {
     const pane = t.id === activeTabId
       ? g.panes.find((p) => p.slot === 'page')
@@ -546,9 +562,11 @@ function contentRadii(pane) {
   return r.map((v) => `${v}px`).join(' ');
 }
 
-function activeSkins({ landscape, duo }) {
-  // a foldable's own bars stand in for the browser's (drawn in duo.js)
-  if (!S.showChrome || duo) return [];
+function activeSkins({ landscape, duo, compare }) {
+  // a foldable's own bars stand in for the browser's (drawn in duo.js); no
+  // single skin can span two different pages, so Compare draws its own
+  // compact bar over the right pane instead (see compare.js)
+  if (!S.showChrome || duo || compare) return [];
   switch (browser.id) {
     case 'chrome-android': return [SKINS.chromeAndroid, SKINS.chromeNav];
     case 'chrome-ios':     return [SKINS.chromeIosTop, SKINS.chromeIosBot];
@@ -661,6 +679,25 @@ function reloadShown() {
   for (const t of tabs) if (t.el.classList.contains('shown')) t.el.reload();
 }
 
+/**
+ * Cookies, cache, local storage, site data — everything a page could use to
+ * remember it's been seen before, for every tab at once (they share one
+ * partition). The confirm dialog lives in the main process, not here — see
+ * browsing:clear in main.js — so it can't be triggered by anything but an
+ * actual click on this.
+ */
+async function clearBrowsingData() {
+  const res = await window.bridge.clearBrowsingData();
+  if (!res?.ok) {
+    if (!res?.canceled) toast('Could not clear browsing data.');
+    return;
+  }
+  for (const t of tabs) {
+    try { t.el.reloadIgnoringCache(); } catch { t.el.reload(); }
+  }
+  toast('Browsing data cleared \u2014 cookies, cache and site data reset for every tab.');
+}
+
 /* -------------------------------------------------------------- menus */
 function deviceMenuSections() {
   // Android above iPhone, newest first in each: the oldest iPhone sits nearest
@@ -739,6 +776,12 @@ function paintMenus() {
   $('rotate').title = device.orientation ? 'This display has a fixed orientation' : 'Rotate (⌘⌃R)';
   label('uaMenu', uaById(S.userAgentId).name);
   label('zoomMenu', (ZOOMS.find((z) => z.value === S.zoom) || ZOOMS[0]).label);
+
+  $('compare').disabled = Boolean(device.foldable);
+  $('compare').title = device.foldable
+    ? 'Not available on iPhone Duo \u2014 its Split View already shows two tabs'
+    : 'Compare two tabs side by side (\u2318\u21e7C)';
+  $('compare').classList.toggle('on', Boolean(S.compare) && !device.foldable);
 }
 
 function pickDevice(id) {
@@ -840,7 +883,10 @@ function wireUI() {
     const railTab = tabById(Number(control.closest('[data-tab]')?.dataset.tab));
     const el = (railTab || activeTab())?.el;
 
-    if (control.hasAttribute('data-new-tab-here')) return openTabInOtherHalf();
+    // Duo's own Split View creates the tab already focused into that half;
+    // Compare's empty pane just opens an ordinary tab — the auto-pick in
+    // renderCompare() slots whichever tab isn't active into the right pane.
+    if (control.hasAttribute('data-new-tab-here')) return (S.compare ? requestNewTab : openTabInOtherHalf)();
     if (control.hasAttribute('data-new-tab')) return requestNewTab();
     if (!el) return;
     if (control.hasAttribute('data-back')) nav.back(el);
@@ -854,10 +900,15 @@ function wireUI() {
   });
 
   $('newTab').onclick = requestNewTab;
+  $('tabInfo').onclick = () => toast(
+    'Each tab is its own Chromium process with a live inspector session keeping '
+    + 'the emulation in sync \u2014 real overhead per tab. Four is where things stay fast and responsive.');
   $('poseAction').onclick = togglePoseControls;
   bindMenus();
 
   $('rotate').onclick = rotate;
+  $('compare').onclick = toggleCompare;
+  phone.addEventListener('click', handleCompareActivateClick);
   $('chrome').onclick = toggleChrome;
   $('scheme').onclick = cycleScheme;
   $('shot').onclick = (e) => screenshot({ fullPage: e.altKey });   // ⌥-click = full page
@@ -888,8 +939,16 @@ function wireUI() {
       case 'device': if (payload !== deviceEntry.id) pickDevice(payload); break;
       case 'reapply-emulation': applyEmulation(); break;
       case 'new-tab': requestNewTab(); break;
-      case 'close-tab': if (activeTabId != null) closeTab(activeTabId); break;
+      case 'close-tab':
+        if (activeTabId == null) break;
+        // nothing left to close as a tab — fall back to the window, same as
+        // Safari/Chrome once you're down to the last one
+        if (tabs.length <= 1) window.bridge.closeWindow();
+        else closeTab(activeTabId);
+        break;
       case 'settings': openSettings(); break;
+      case 'clear-browsing-data': clearBrowsingData(); break;
+      case 'toggle-compare': toggleCompare(); break;
     }
   });
 }
@@ -924,9 +983,12 @@ function attachWebviewListeners(el, tabId) {
     if (tabId === activeTabId) sampleTheme(el);
   });
 
-  // Clicking into the other half of Split View makes it the tab you're working in
+  // Clicking into the other half of Duo's Split View makes it the tab you're
+  // working in — its panes are meant to swap like real multitasking. Compare
+  // mode deliberately doesn't do this (see compare.js): its panes stay put so
+  // you can poke around each page without them jumping sides.
   el.addEventListener('focus', () => {
-    if (tabId !== activeTabId && el.classList.contains('shown')) activateTab(tabId);
+    if (tabId !== activeTabId && el.classList.contains('shown') && device.split) activateTab(tabId);
   });
 
   el.addEventListener('did-start-loading', () => {

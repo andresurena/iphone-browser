@@ -1517,3 +1517,120 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
 .ph-lines { flex: 1; display: flex; flex-direction: column; gap: 7px; }
 .ph-lines i { display: block; height: 9px; border-radius: 5px; background: color-mix(in srgb, var(--ui-fg) 18%, transparent); }
 .ph-lines i + i { height: 8px; background: color-mix(in srgb, var(--ui-fg) 10%, transparent); }
+
+/* ============================================================== compare
+   "See two tabs side by side" — see compare.js. Reuses Duo's .duo-pane /
+   .duo-divider / .duo-empty (defined above) for the split itself; this is
+   just the tab-strip affordances, the bottom-bar button and the right pane's
+   own compact toolbar. */
+
+.tab-cap {
+  flex: none;
+  padding-left: 2px;
+  font-size: 11px;
+  color: var(--fg-dim);
+  white-space: nowrap;
+}
+
+.tab-info {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--chrome-line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--fg-dim);
+  font: 600 10px/1 -apple-system, system-ui, sans-serif;
+  padding: 0;
+}
+.tab-info:hover { background: var(--field); color: var(--fg); border-color: var(--fg-dim); }
+
+/* the per-tab "compare this one" icon, beside the close button */
+.tab-compare {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  color: inherit;
+  opacity: .55;
+}
+.tab-compare svg {
+  width: 12px; height: 8px;
+  fill: none; stroke: currentColor; stroke-width: 1.5;
+}
+.tab-compare:hover { opacity: 1; background: rgba(128, 128, 128, .25); }
+.tab-compare.active { opacity: 1; color: var(--accent); }
+
+/* the right pane's floating mini-toolbar */
+.compare-bar {
+  position: absolute;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 34px;
+  margin: 8px;
+  padding: 0 4px;
+  border-radius: 17px;
+  color: var(--ui-fg);
+  background: color-mix(in srgb, var(--ui-neutral) 66%, transparent);
+  backdrop-filter: blur(20px) saturate(180%);
+  box-shadow:
+    0 0 0 .5px color-mix(in srgb, var(--ui-fg) 12%, transparent),
+    0 6px 16px rgba(0, 0, 0, .16);
+}
+.compare-bar > * { pointer-events: auto; }
+.compare-nav {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  padding: 0;
+  border-radius: 13px;
+  background: transparent;
+  color: inherit;
+}
+.compare-nav svg {
+  width: 14px; height: 14px;
+  fill: none; stroke: currentColor;
+  stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+}
+.compare-nav:disabled { opacity: .35; }
+.compare-host {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  border: 0;
+  padding: 0 6px;
+  border-radius: 13px;
+  background: transparent;
+  color: inherit;
+  font: 500 12px -apple-system, system-ui, sans-serif;
+  text-align: center;
+}
+.compare-host span {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.compare-host:hover { background: color-mix(in srgb, var(--ui-fg) 10%, transparent); }
+
+/* Settings > General: the destructive-ish action button, restrained rather
+   than alarmist since it's already behind a native confirm. */
+.settings-clear-btn {
+  flex: none;
+  padding: 6px 14px;
+  border: 1px solid var(--chrome-line);
+  border-radius: 7px;
+  background: var(--field);
+  color: #ff453a;
+  font: 500 12.5px -apple-system, system-ui, sans-serif;
+}
+.settings-clear-btn:hover { background: var(--field-focus); }

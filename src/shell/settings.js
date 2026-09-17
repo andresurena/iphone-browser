@@ -182,6 +182,8 @@ function wireSettings() {
     onPick: (id) => { set({ startDeviceId: id }, { relayout: false }); renderSettings(); },
   }));
 
+  $('clearDataBtn').onclick = clearBrowsingData;
+
   for (const el of all('[data-app-name]')) el.textContent = APP_NAME;
   $('aboutVersion').textContent = APP_VERSION;
   $('aboutLink').onclick = () => window.bridge.openExternal('https://andresurena.com');

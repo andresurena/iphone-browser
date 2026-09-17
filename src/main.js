@@ -2,7 +2,7 @@
 
 const {
   app, BrowserWindow, ipcMain, webContents, dialog, shell, nativeTheme, screen,
-  nativeImage,
+  nativeImage, session,
 } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -486,6 +486,42 @@ ipcMain.handle('login:get', () => app.getLoginItemSettings().openAtLogin);
 ipcMain.handle('login:set', (_e, on) => {
   app.setLoginItemSettings({ openAtLogin: Boolean(on) });
   return app.getLoginItemSettings().openAtLogin;
+});
+
+// Every tab shares one partition ('persist:ios' — set on each <webview>), so
+// clearing it is one operation for every tab at once: cookies, cache, local
+// storage, service workers, IndexedDB — everything a site could use to
+// remember it's been seen before. Confirmed with the user first, here rather
+// than in the renderer, so a compromised page can never trigger it itself.
+ipcMain.handle('browsing:clear', async () => {
+  const { response } = await dialog.showMessageBox(win, {
+    type: 'warning',
+    message: 'Clear browsing data?',
+    detail: 'This clears cookies, cache, local storage and site data for every '
+      + 'tab — including anything you’re signed into. It can’t be undone.',
+    buttons: ['Cancel', 'Clear'],
+    defaultId: 0,
+    cancelId: 0,
+  });
+  if (response !== 1) return { ok: false, canceled: true };
+
+  try {
+    const ses = session.fromPartition('persist:ios');
+    await ses.clearStorageData();
+    await ses.clearCache();
+    return { ok: true };
+  } catch (err) {
+    console.warn('[browsing:clear]', err.message);
+    return { ok: false };
+  }
+});
+
+// Cmd+W closes the active tab (see preload/shell.js), not the window — this is
+// what the menu's "Close Window" item falls back to instead of Electron's
+// default `role: 'close'`, and what the renderer calls when Cmd+W is pressed
+// with only one tab left, matching Safari/Chrome closing the window at that point.
+ipcMain.handle('window:close', () => {
+  if (win && !win.isDestroyed()) win.close();
 });
 
 /* ------------------------------------------------------------ web contents */
