@@ -139,6 +139,7 @@ function safeCall(primary, fallback, dflt) {
   activateTab(tabs[0].id);
   wireUI();
   wireSettings();
+  wireBreakout();
   tickClock();
   setInterval(tickClock, 10_000);
 })();
@@ -264,6 +265,7 @@ function renderTabs() {
       + (t.id === otherId || t.id === cmpId ? ' beside' : '');
     btn.title = t.title || t.url || 'New Tab';
     btn.onclick = () => { if (t.id !== activeTabId) activateTab(t.id); };
+    wireTabDrag(btn, t.id);
 
     const label = document.createElement('span');
     label.className = 'label';
@@ -295,6 +297,55 @@ function renderTabs() {
     : `New Tab (⌘T) — up to ${MAX_TABS} at a time`;
 
   renderTabCounts();
+}
+
+/* Drag a tab sideways to reorder it. Only the order in the strip changes: each
+   tab keeps its own page, and no <webview> is moved in the DOM (that would
+   reload it). The first tab is the one whose page opens again on relaunch,
+   so dragging a tab to the front makes it the one that's remembered. */
+let draggingTabId = null;
+
+function wireTabDrag(btn, id) {
+  btn.draggable = true;
+  btn.addEventListener('dragstart', (e) => {
+    draggingTabId = id;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(id));
+    requestAnimationFrame(() => btn.classList.add('dragging'));
+  });
+  btn.addEventListener('dragend', () => {
+    draggingTabId = null;
+    for (const el of all('.tab')) el.classList.remove('dragging', 'drop-before', 'drop-after');
+  });
+  btn.addEventListener('dragover', (e) => {
+    if (draggingTabId == null || draggingTabId === id) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const r = btn.getBoundingClientRect();
+    const after = e.clientX > r.left + r.width / 2;
+    btn.classList.toggle('drop-after', after);
+    btn.classList.toggle('drop-before', !after);
+  });
+  btn.addEventListener('dragleave', () => btn.classList.remove('drop-before', 'drop-after'));
+  btn.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (draggingTabId == null || draggingTabId === id) return;
+    const after = btn.classList.contains('drop-after');
+    moveTab(draggingTabId, id, after);
+  });
+}
+
+function moveTab(movingId, targetId, after) {
+  const from = tabs.findIndex((t) => t.id === movingId);
+  if (from < 0) return;
+  const [moving] = tabs.splice(from, 1);
+  let to = tabs.findIndex((t) => t.id === targetId);
+  if (to < 0) { tabs.splice(from, 0, moving); return; }
+  if (after) to += 1;
+  tabs.splice(to, 0, moving);
+  renderTabs();
+  // the front tab's page is the one reopened on relaunch
+  set({ url: tabs[0].url || '' }, { relayout: false });
 }
 
 // the drawn browser skins (Chrome's tab-count pill) mirror the real count —
@@ -461,6 +512,7 @@ function layout() {
   renderDuo(g);
   renderCompare(g);
   renderPose(g);
+  paintBarCollapse();
 
   // fit-to-window or a fixed percentage. A posed device is fitted to the box
   // it actually projects to, measured, and shifted so that box — not the flat
@@ -514,7 +566,7 @@ function layout() {
  * counts as a page while Settings or a menu is drawn over it.
  */
 function reportPageRects() {
-  const covered = !$('settings').hidden || Boolean(openPopover);
+  const covered = !$('settings').hidden || !$('breakout').hidden || Boolean(openPopover);
   const rects = covered ? [] : tabs
     .filter((t) => t.el.classList.contains('shown'))
     .map((t) => {
@@ -913,6 +965,10 @@ function wireUI() {
   // Duo's rails are redrawn whenever the layout changes; a rail acts on the tab
   // in its own pane, which in Split View isn't always the active one.
   phone.addEventListener('click', (e) => {
+    const bar = e.target.closest('.collapsed');
+    if (bar && expandBar(barTabId(bar))) { e.stopImmediatePropagation(); e.preventDefault(); }
+  }, true);
+  phone.addEventListener('click', (e) => {
     const control = e.target.closest('button');
     if (!control || !phone.contains(control)) return;
     const railTab = tabById(Number(control.closest('[data-tab]')?.dataset.tab));
@@ -1044,22 +1100,37 @@ function attachWebviewListeners(el, tabId) {
     if (device.pose) setTimeout(refreshPoseSnapshot, 150);
   });
 
-  // A page can't call the shell, but it can log — so a throttled scroll
-  // listener logs a marker, and the picture of the turned-away half follows.
+  // A page can't call the shell, but it can log — so a throttled listener logs
+  // the document's scroll position. Safari's bar minimises from it, and the
+  // picture of a pose's turned-away half follows it. Only the document's own
+  // scroll counts, as in Safari: a page scrolling an inner box keeps the bar.
   el.addEventListener('dom-ready', () => {
     el.executeJavaScript(`(() => {
       if (window.__ibScrollHooked) return; window.__ibScrollHooked = true;
-      let t = 0;
-      addEventListener('scroll', () => { const n = Date.now(); if (n - t > 400) { t = n; console.log('__ib_scrolled'); } }, { passive: true, capture: true });
+      let t = 0, trail = 0;
+      const say = () => console.log('__ib_scroll:' + Math.max(0, Math.round(scrollY)));
+      addEventListener('scroll', () => {
+        clearTimeout(trail); trail = setTimeout(say, 120);
+        const n = Date.now(); if (n - t > 90) { t = n; say(); }
+      }, { passive: true });
     })()`).catch(() => {});
   });
+  let poseSnapAt = 0;
   el.addEventListener('console-message', (e) => {
-    if (e.message === '__ib_scrolled' && device.pose && tabId === activeTabId) refreshPoseSnapshot();
+    const m = /^__ib_scroll:(\d+)$/.exec(e.message);
+    if (!m) return;
+    noteScroll(tabId, Number(m[1]));
+    if (device.pose && tabId === activeTabId && Date.now() - poseSnapAt > 400) {
+      poseSnapAt = Date.now();
+      refreshPoseSnapshot();
+    }
   });
 
   const onNav = () => {
     const tab = tabById(tabId);
     if (!tab) return;
+    if (tab.barCollapsed) { tab.barCollapsed = false; paintBarCollapse(); }
+    tab.scrollY = 0;
     let url = '';
     try { url = el.getURL(); } catch { /* guest not ready */ }
     // about:blank is the parking page every tab starts on, not somewhere the
@@ -1123,6 +1194,50 @@ function paintDeviceHosts() {
   for (const el of mine('[data-host]')) el.textContent = host;
   for (const el of mine('[data-host-or-placeholder]')) el.textContent = host || 'Search Google or type URL';
   for (const el of mine('[data-host-or-search]')) el.textContent = host || 'Search or enter website';
+}
+
+/* ------------------------------------------------ Safari's minimised bar
+   Scrolling down a page shrinks Safari's bar to a small pill with just the
+   address; scrolling back up, or tapping the pill, brings the whole bar back.
+   Apple publishes no dimensions for the compact pill — the sizes in the CSS
+   are estimates to check against a device. Kept per tab, because in Split
+   View and Compare each page's bar minimises on its own. */
+const BAR_COLLAPSE_AFTER = 44;   // near the top of a page, the bar always shows
+
+function noteScroll(tabId, y) {
+  const tab = tabById(tabId);
+  if (!tab) return;
+  const last = tab.scrollY ?? 0;
+  tab.scrollY = y;
+  let collapsed = Boolean(tab.barCollapsed);
+  if (y <= BAR_COLLAPSE_AFTER) collapsed = false;
+  else if (y > last + 2) collapsed = true;
+  else if (y < last - 2) collapsed = false;
+  if (collapsed !== Boolean(tab.barCollapsed)) {
+    tab.barCollapsed = collapsed;
+    paintBarCollapse();
+  }
+}
+
+function expandBar(tabId) {
+  const tab = tabById(tabId);
+  if (!tab?.barCollapsed) return false;
+  tab.barCollapsed = false;
+  paintBarCollapse();
+  return true;
+}
+
+/** Which tab a drawn bar belongs to: its own [data-tab], else the first device's page. */
+function barTabId(el) {
+  const own = Number(el.closest('[data-tab]')?.dataset.tab);
+  if (own) return own;
+  return S.compare ? comparePageId() : activeTabId;
+}
+
+function paintBarCollapse() {
+  for (const el of all('#phone .safari-glass, #phone .duo-addr[data-tab]')) {
+    el.classList.toggle('collapsed', Boolean(tabById(barTabId(el))?.barCollapsed));
+  }
 }
 
 /** Enable back/forward for the tab each set of controls acts on. */

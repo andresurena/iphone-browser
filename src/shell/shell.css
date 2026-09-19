@@ -1465,14 +1465,11 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
 #awayHalf .pose-back-img { position: absolute; transform: rotate(-90deg); transform-origin: center; pointer-events: none; }
 #awayHalf .pose-controls { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 
-/* the rail: frosted glass over the page, its inner edge softened rather than
-   ruled (Apple's Split View still) */
-.duo-rail {
-  background: color-mix(in srgb, var(--bar-solid) 30%, transparent);
-  backdrop-filter: blur(22px) saturate(1.5);
-}
-.duo-rail.edge-right { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 20px), transparent); }
-.duo-rail.edge-left  { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent); }
+/* The rail has no band of its own: only its buttons are glass, and the page
+   runs on underneath them untouched. Apple's HIG says the Duo's rail has no
+   scroll edge effect by default and that Liquid Glass lets content "peek
+   through from beneath". A frosted band here wiped the page out under the
+   whole column, so a site's header looked cut off at the rail. */
 
 /* laptop pose: the button under the phone for simulated controls */
 .pose-action {
@@ -1608,3 +1605,153 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
   font: 500 12.5px -apple-system, system-ui, sans-serif;
 }
 .settings-clear-btn:hover { background: var(--field-focus); }
+
+/* ------------------------------------------------ Safari's minimised bar
+   Scrolling a page down shrinks Safari's bar to a small glass pill with just
+   the address, low and centred; see noteScroll() in shell.js. Apple publishes
+   no size for it, so these are estimates to check against a device. */
+.safari-glass,
+.safari-glass .round,
+.safari-glass .gpill,
+.duo-addr,
+.duo-addr .host,
+.duo-addr .gicon {
+  transition:
+    width .28s var(--morph-ease), height .28s var(--morph-ease),
+    padding .28s var(--morph-ease), opacity .2s ease,
+    background-color .28s ease, transform .28s var(--morph-ease);
+}
+
+.safari-glass.collapsed { justify-content: center; gap: 0; padding-bottom: 26px; }
+.safari-glass.collapsed .round { width: 0; opacity: 0; overflow: hidden; pointer-events: none; }
+.safari-glass.collapsed .gpill {
+  flex: 0 1 auto;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 15px;
+  cursor: pointer;
+  /* denser than the full bar: backdrop-filter doesn't reach a <webview> on the
+     live compositor, so a thin tint left the address unreadable over text */
+  background: color-mix(in srgb, var(--ui-neutral) 86%, transparent);
+}
+.safari-glass.collapsed .gicon { display: none; }
+.safari-glass.collapsed .gpill .host { flex: none; font-size: 13px; opacity: .85; }
+
+/* the Duo's address pills — beside the rail and across the top — keep their
+   box and shrink to a compact pill inside it, so the page shows around it */
+.duo-addr.collapsed {
+  justify-content: center;
+  background: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
+  pointer-events: none;
+}
+.duo-addr.collapsed .gicon { display: none; }
+.duo-addr.collapsed .host {
+  flex: none;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 15px;
+  font-size: 13px;
+  pointer-events: auto;
+  cursor: pointer;
+  background: color-mix(in srgb, var(--ui-neutral) 86%, transparent);
+  backdrop-filter: blur(26px) saturate(180%);
+  box-shadow:
+    0 0 0 .5px color-mix(in srgb, var(--ui-fg) 12%, transparent),
+    0 6px 16px rgba(0, 0, 0, .14);
+}
+.duo-addr.collapsed .host svg { display: none; }
+.duo-addr:not(.wide).collapsed { align-items: flex-end; padding-bottom: 4px; }
+.duo-addr.wide.collapsed .field { margin: 0; gap: 0; }
+
+/* dragging a tab to reorder it */
+.tab.dragging { opacity: .4; }
+.tab.drop-before { box-shadow: inset 2px 0 0 var(--accent); }
+.tab.drop-after  { box-shadow: inset -2px 0 0 var(--accent); }
+
+/* ============================================================ breakout
+   The easter egg (breakout.js). The trigger is an invisible square in the
+   stage's top-right corner, under "Max 4 tabs". The game is drawn to iOS
+   manners: a grouped card, a segmented control, rounded everything. */
+.egg-trigger {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  z-index: 2;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.breakout {
+  --bo-ink: var(--fg);
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, .32);
+  backdrop-filter: blur(6px);
+}
+.breakout-card {
+  width: 540px;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 18px 14px;
+  background: var(--chrome);
+  border: 1px solid var(--chrome-line);
+  border-radius: 22px;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, .4);
+}
+.breakout-head { display: flex; align-items: center; gap: 12px; }
+.breakout-head h2 { margin: 0; flex: 1; font: 700 17px -apple-system, "SF Pro Display", system-ui, sans-serif; }
+
+/* iOS segmented control */
+.breakout-levels {
+  display: flex;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--field);
+  border: 1px solid var(--chrome-line);
+}
+.breakout-levels button {
+  border: 0;
+  padding: 4px 12px;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--fg-dim);
+  font: 500 12.5px -apple-system, system-ui, sans-serif;
+}
+.breakout-levels button.on {
+  background: var(--chrome);
+  color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .18), 0 0 0 .5px rgba(0, 0, 0, .06);
+}
+
+.breakout-canvas {
+  width: 100%;
+  aspect-ratio: 480 / 360;
+  display: block;
+  border-radius: 16px;
+  background: var(--bg);
+  outline: none;
+}
+
+.breakout-foot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font: 12.5px -apple-system, system-ui, sans-serif;
+  color: var(--fg-dim);
+}
+.breakout-score b { color: var(--fg); font-variant-numeric: tabular-nums; }
+.breakout-lives { display: flex; gap: 5px; }
+.breakout-lives i { width: 9px; height: 9px; border-radius: 50%; background: #28c840; }
+.breakout-lives i.lost { background: var(--chrome-line); }
+.breakout-hint { margin-left: auto; }

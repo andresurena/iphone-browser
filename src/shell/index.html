@@ -297,6 +297,9 @@
     <button id="poseAction" class="pose-action" hidden></button>
 
     <div id="meta" class="meta" hidden></div>
+
+    <!-- nothing to see here -->
+    <button id="eggTrigger" class="egg-trigger" tabindex="-1" aria-hidden="true"></button>
   </main>
 
   <!-- ----------------------------------------------------- device bar -->
@@ -360,6 +363,29 @@
   <div id="toast" class="toast" hidden></div>
 
   <!-- -------------------------------------------------------- settings -->
+  <!-- the easter egg behind #eggTrigger — see breakout.js -->
+  <div id="breakout" class="breakout" hidden>
+    <div class="breakout-card" role="dialog" aria-modal="true" aria-labelledby="breakoutTitle">
+      <header class="breakout-head">
+        <h2 id="breakoutTitle">Breakout</h2>
+        <div class="breakout-levels" role="group" aria-label="Difficulty">
+          <button data-level="easy">Easy</button>
+          <button data-level="medium">Medium</button>
+          <button data-level="hard">Hard</button>
+        </div>
+        <button id="breakoutClose" class="icon" title="Close (Esc)">
+          <svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+        </button>
+      </header>
+      <canvas id="breakoutCanvas" class="breakout-canvas" tabindex="0" aria-label="Breakout game"></canvas>
+      <footer class="breakout-foot">
+        <span class="breakout-score">Score <b id="breakoutScore">0</b></span>
+        <span id="breakoutLives" class="breakout-lives"></span>
+        <span class="breakout-hint">← → move · Space launches · Esc closes</span>
+      </footer>
+    </div>
+  </div>
+
   <div id="settings" class="settings" hidden>
     <div class="settings-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
       <header class="settings-head">
@@ -434,6 +460,7 @@
   <script src="duo.js"></script>
   <script src="compare.js"></script>
   <script src="settings.js"></script>
+  <script src="breakout.js"></script>
   <script src="shell.js"></script>
 </body>
 </html>

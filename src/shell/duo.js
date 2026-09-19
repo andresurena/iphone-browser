@@ -601,8 +601,10 @@ const POSES = {
   laptop: { live: 'top',   liveTilt: 'rotateX(10deg)',  awayTilt: 'rotateX(62deg)',
             perspective: 2200, shadowAt: 0.77 },
   // an A-frame seen straight on: the outer display leans back from its base,
-  // and the device's back drops away behind it, just peeking out one side
-  tent:   { live: 'all',   liveTilt: 'rotateX(14deg)',  awayTilt: 'rotateX(-40deg) translateX(14px)',
+  // and the device's back drops away behind it. Only its hinge edge shows,
+  // along the top. The back's hinge corners are square, and at full width
+  // they poked out past the front's rounded ones — narrowing it tucks them in.
+  tent:   { live: 'all',   liveTilt: 'rotateX(14deg)',  awayTilt: 'rotateX(-40deg) scaleX(0.94)',
             perspective: 1600, shadowAt: 0.985 },
 };
 
