@@ -1664,6 +1664,9 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
 .duo-addr.collapsed .host svg { display: none; }
 .duo-addr:not(.wide).collapsed { align-items: flex-end; padding-bottom: 4px; }
 .duo-addr.wide.collapsed .field { margin: 0; gap: 0; }
+/* minimised at the top, the pill rides at the top of its row, so the page can
+   start right under it */
+.duo-addr.wide.collapsed { align-items: flex-start; }
 
 /* dragging a tab to reorder it */
 .tab.dragging { opacity: .4; }

@@ -34,7 +34,7 @@ const DUO_RAIL = {
   // Horizontal layouts — the inner display upright, and stacked Split View —
   // put Safari's bar and the status capsule along the top instead, the page
   // running under both (Apple's launch footage: Safari on the inner display)
-  topbar: { height: 46, side: 12, top: 10 },
+  topbar: { height: 46, side: 12, top: 10, compact: 30 },
   statusPill: 82,   // the time-and-glyph capsule's width
 };
 
@@ -164,12 +164,22 @@ function creaseOf(w, h, landscape) {
 
 /* ---------------------------------------------------------------- panes */
 
+/*
+ * Where the page goes relative to Safari's bars. WebKit lays a page out in the
+ * part of the screen Safari's bars don't cover (its "obscured insets"): a page
+ * starts below a top bar, and a fixed header sits just under it rather than
+ * hidden behind it. Content only passes under the glass while scrolling. So
+ * with Safari drawn, a pane's page is inset clear of the top bar and the rail,
+ * and the strip behind the bar shows the page's own colour (.duo-pane), which
+ * is how Safari tints it. The rail is inferred from Apple's guidance that main
+ * content sits beside it; Apple hasn't documented Safari on the Duo itself.
+ * With the browser UI hidden the page owns the whole screen, as before, and is
+ * told what the rail and status cover through its safe-area insets instead.
+ */
 function railPane(rect, edge, { status, cameraAt = null }) {
   const R = DUO_RAIL;
-  // the rail is frosted glass over the page, not beside it (Apple's Split View
-  // still: the photo runs on under the controls) — so the page keeps the whole
-  // pane and reports the rail as its safe-area inset on that edge
-  const inset = S.showChrome ? R.inset : R.bareInset;
+  const beside = S.showChrome ? R.inset : 0;
+  const bare = S.showChrome ? 0 : R.bareInset;
   return {
     ...rect,
     edge,
@@ -177,46 +187,54 @@ function railPane(rect, edge, { status, cameraAt = null }) {
     cameraAt,
     top: 0,
     bottom: 0,
-    left: 0,
-    right: 0,
-    viewW: rect.w,
+    left: edge === 'left' ? beside : 0,
+    right: edge === 'right' ? beside : 0,
+    viewW: rect.w - beside,
     viewH: rect.h,
     safeArea: {
       top: 0,
-      right: edge === 'right' ? inset : 0,
+      right: edge === 'right' ? bare : 0,
       bottom: rect.h > rect.w ? device.homeIndicator : 21,
-      left: edge === 'left' ? inset : 0,
+      left: edge === 'left' ? bare : 0,
     },
   };
 }
 
 /**
  * A pane with horizontal bars: Safari's capsule along the top with the status
- * capsule beside it, the page running under them. What the inner display
- * gives Safari upright, and what every pane gets when two apps stack.
+ * capsule beside it. What the inner display gives Safari upright, and what
+ * every pane gets when two apps stack. The page starts below the bars (see
+ * railPane above), and moves up when Safari's bar minimises — but only as far
+ * as the status capsule, which stays the height it was.
  */
-function topPane(rect, { status, foot }) {
+function topPane(rect, { status, foot, collapsed = false }) {
   const T = DUO_RAIL.topbar;
-  const barFoot = T.top * 2 + T.height;
+  const row = collapsed && !status ? T.compact : T.height;
+  const top = S.showChrome ? T.top * 2 + row : 0;
   return {
     ...rect,
     edge: null,
     status,
-    top: 0,
+    top,
     bottom: 0,
     left: 0,
     right: 0,
     viewW: rect.w,
-    viewH: rect.h,
-    // the capsules float, so the page keeps the whole pane and is told what
-    // they cover; the home indicator only matters on the pane that has it
+    viewH: rect.h - top,
+    // the home indicator only matters on the pane that has it
     safeArea: {
-      top: S.showChrome ? barFoot : (status ? DUO_RAIL.topbar.top + T.height : 0),
+      top: S.showChrome ? 0 : (status ? T.top + T.height : 0),
       right: 0,
       bottom: foot ? device.homeIndicator : 0,
       left: 0,
     },
   };
+}
+
+/** Whether the tab in a pane's slot has Safari's bar minimised. */
+function slotCollapsed(slot) {
+  const id = slot === 'other' ? otherTabId() : activeTabId;
+  return Boolean(tabById(id)?.barCollapsed);
 }
 
 /**
@@ -240,7 +258,7 @@ function duoPanes(w, h, landscape) {
             status: !(landscape && device.camera === 'corner'),
             cameraAt: cam ? cam.end : null,
           })
-        : topPane(rect, { status: true, foot: !controls })),
+        : topPane(rect, { status: true, foot: !controls, collapsed: slotCollapsed('page') })),
     };
     // the page carries the display's own corners — see pageRadii in shell.js
     pane.radii = pageRadii(pane, screenCorners(landscape), w, h);
@@ -265,8 +283,10 @@ function duoPanes(w, h, landscape) {
     // top takes a quarter and the app below runs on past the fold.
     const ratio = device.splitRatio || 0.5;
     const ph = Math.round((h - gap) * ratio);
-    leading = { ...topPane({ x: 0, y: 0, w, h: ph }, { status: false, foot: false }), radii: [0, 0, r, r] };
-    trailing = { ...topPane({ x: 0, y: ph + gap, w, h: h - gap - ph }, { status: false, foot: true }), radii: [r, r, 0, 0] };
+    const leadSlot = device.split === 'leading' ? 'page' : 'other';
+    const trailSlot = leadSlot === 'page' ? 'other' : 'page';
+    leading = { ...topPane({ x: 0, y: 0, w, h: ph }, { status: false, foot: false, collapsed: slotCollapsed(leadSlot) }), radii: [0, 0, r, r] };
+    trailing = { ...topPane({ x: 0, y: ph + gap, w, h: h - gap - ph }, { status: false, foot: true, collapsed: slotCollapsed(trailSlot) }), radii: [r, r, 0, 0] };
     divider = { x: 0, y: ph, w, h: gap, axis: 'horizontal' };
   }
 
@@ -503,7 +523,7 @@ function renderDuo(g) {
   if (g.duo) {
     for (const pane of g.panes) {
       const tabId = pane.slot === 'page' ? activeTabId : otherId;
-      under += `<div class="duo-pane" style="left:${pane.x}px; top:${pane.y}px;
+      under += `<div class="duo-pane" data-tab="${tabId ?? ''}" style="left:${pane.x}px; top:${pane.y}px;
         width:${pane.w}px; height:${pane.h}px; border-radius:${px(pane.radii)}"></div>`;
       // a stand-in app, with nothing of ours drawn over it
       if (pane.slot === 'other' && device.placeholderOther) {
@@ -555,9 +575,18 @@ function renderDuo(g) {
 
   below.innerHTML = under;
   above.innerHTML = over;
+  paintPaneThemes();
   tickClock();
   renderTabCounts();
   syncNav();
+}
+
+/** Each pane's window takes its own page's colour — the strip behind Safari's bar shows it. */
+function paintPaneThemes() {
+  for (const el of all('.duo-pane[data-tab]')) {
+    const theme = tabById(Number(el.dataset.tab))?.theme;
+    el.style.background = theme ? theme.solid : '';
+  }
 }
 
 /** Each pane's address pill names its own tab's site — in Split View, two different ones. */

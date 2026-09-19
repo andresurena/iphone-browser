@@ -644,6 +644,8 @@ function contentRadii(pane) {
   const r = [...pane.radii];
   if (pane.left) { r[0] = 0; r[3] = 0; }
   if (pane.right) { r[1] = 0; r[2] = 0; }
+  if (pane.top) { r[0] = 0; r[1] = 0; }
+  if (pane.bottom) { r[2] = 0; r[3] = 0; }
   return r.map((v) => `${v}px`).join(' ');
 }
 
@@ -1074,7 +1076,7 @@ function attachWebviewListeners(el, tabId) {
     applyEmulationTo(el);
     // in Compare the second device is tinted by its own page, so a tab that
     // isn't the active one still needs sampling
-    if (tabId === activeTabId || S.compare) sampleTheme(el);
+    if (tabId === activeTabId || S.compare || device.split) sampleTheme(el);
   });
 
   // Clicking into a page makes it the tab the toolbar drives — Duo's Split
@@ -1093,6 +1095,7 @@ function attachWebviewListeners(el, tabId) {
     syncNav();
     if (tabId !== activeTabId) {
       if (S.compare) { sampleTheme(el); paintCompareFrame(); }
+      else if (device.split) sampleTheme(el);
       return;
     }
     $('spinner').hidden = true;
@@ -1209,22 +1212,33 @@ function noteScroll(tabId, y) {
   if (!tab) return;
   const last = tab.scrollY ?? 0;
   tab.scrollY = y;
+  // resizing the page to follow the bar nudges its scroll position; reading
+  // that back as the reader scrolling would flip the bar straight back
+  if (Date.now() < (tab.barSettleUntil || 0)) return;
   let collapsed = Boolean(tab.barCollapsed);
   if (y <= BAR_COLLAPSE_AFTER) collapsed = false;
   else if (y > last + 2) collapsed = true;
   else if (y < last - 2) collapsed = false;
-  if (collapsed !== Boolean(tab.barCollapsed)) {
-    tab.barCollapsed = collapsed;
-    paintBarCollapse();
-  }
+  if (collapsed !== Boolean(tab.barCollapsed)) setBarCollapsed(tab, collapsed);
 }
 
 function expandBar(tabId) {
   const tab = tabById(tabId);
   if (!tab?.barCollapsed) return false;
-  tab.barCollapsed = false;
-  paintBarCollapse();
+  setBarCollapsed(tab, false);
   return true;
+}
+
+/** On the Duo, a minimised bar can give the page more room — so relayout if it does. */
+function setBarCollapsed(tab, collapsed) {
+  const room = () => JSON.stringify(geometry().panes.map((p) => [p.top, p.viewH]));
+  const before = device.foldable ? room() : '';
+  tab.barCollapsed = collapsed;
+  paintBarCollapse();
+  if (device.foldable && room() !== before) {
+    tab.barSettleUntil = Date.now() + 450;
+    layout();
+  }
 }
 
 /** Which tab a drawn bar belongs to: its own [data-tab], else the first device's page. */
@@ -1307,6 +1321,7 @@ function paintBarThemes() {
   const shown = S.compare ? tabById(comparePageId()) : activeTab();
   applyBarTheme(phone, shown?.theme);
   paintCompareFrame();
+  paintPaneThemes();
 }
 
 /**
