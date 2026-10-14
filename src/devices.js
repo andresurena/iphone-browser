@@ -178,9 +178,14 @@ const IPHONE_DUO = {
  * - The bezel (36 pt), the metal rim (7 pt), the screen's corners (72 pt) and
  *   the camera's place in the top bezel are measured from Apple's straight-on
  *   product image, scaled to the 544 pt reading above.
- * - No status bar and no home indicator are drawn: none shows in any of
- *   Apple's images, and the clock and controls on the faces are face content.
- *   The safe area is reported as zero all round for the same reason.
+ * - A status strip along the top, with just the clock at the right: that is
+ *   what Apple's own apps show on it (the Weather app in the product images
+ *   has the time top-right and nothing else). It matters for the page more
+ *   than the clock does — the screen's corners are so round that content
+ *   reaching the top edge loses its corners under the glass, and the strip is
+ *   what keeps a page's header and its tap targets clear of the curve, the
+ *   same job the status bar does on an iPhone. 56 pt is read from that image.
+ *   No home indicator shows in any image, so none is drawn.
  * - Safari's own bars on it are undocumented; the iOS 26 Safari skin stands in.
  *
  * The screen is square and the device only tilts, so there is no rotation.
@@ -203,7 +208,7 @@ const APPLE_HOMEVIEW = {
   screenRadius: 72,
   front: { type: 'none', w: 0, h: 0, top: 0 },   // the camera sits in the bezel
   buttons: 'none',
-  statusBar: 0,
+  statusBar: 56,
   homeIndicator: 0,
   landscapeSafeArea: { top: 0, right: 0, bottom: 0, left: 0 },
   beta: true,

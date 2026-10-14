@@ -1804,5 +1804,14 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
     linear-gradient(90deg, #a9a9ad, #e4e4e8 25%, #f0f0f3 50%, #dcdcdf 78%, #9c9ca0);
   box-shadow: 0 10px 22px rgba(0, 0, 0, .22);
 }
+/* its status strip: only the clock, at the right, as Apple's own apps show it */
+#phone.homeview .statusbar.ios .time {
+  left: auto;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+}
+#phone.homeview .statusbar.ios .indicators { display: none; }
 #phone.homeview .homebar { display: none; }
 #phone.homeview .btn { display: none; }
