@@ -178,15 +178,18 @@ const IPHONE_DUO = {
  * - The bezel (36 pt), the metal rim (7 pt), the screen's corners (72 pt) and
  *   the camera's place in the top bezel are measured from Apple's straight-on
  *   product image, scaled to the 544 pt reading above.
- * - A status strip along the top, with just the clock at the right: that is
- *   what Apple's own apps show on it (the Weather app in the product images
- *   has the time top-right and nothing else). It matters for the page more
- *   than the clock does — the screen's corners are so round that content
- *   reaching the top edge loses its corners under the glass, and the strip is
- *   what keeps a page's header and its tap targets clear of the curve, the
- *   same job the status bar does on an iPhone. 56 pt is read from that image.
- *   No home indicator shows in any image, so none is drawn.
- * - Safari's own bars on it are undocumented; the iOS 26 Safari skin stands in.
+ * - Safari's layout on it comes from a photograph of a unit running Safari
+ *   (Andrés, 14 Oct), not from Apple: one row along the top holds a round
+ *   close button at the left, the address pill in the middle and the clock
+ *   at the right, and the page starts beneath that row and runs to the
+ *   bottom with no bar there. The row is 88 pt by eye from that photo — a
+ *   44 pt pill with 22 pt above and below (`chrome.safari`, drawn by the
+ *   uiHomeView skin). The clock is the system's, but it sits in Safari's
+ *   row, so it's drawn there rather than as a status bar. No home indicator
+ *   shows in any image, so none is drawn.
+ * - The row also does what the status bar does on an iPhone: the screen's
+ *   corners are so round that a page reaching the top edge would lose its
+ *   header's corners, and the controls in them, under the glass.
  *
  * The screen is square and the device only tilts, so there is no rotation.
  * https://www.apple.com/apple-homeview/specs/
@@ -208,7 +211,9 @@ const APPLE_HOMEVIEW = {
   screenRadius: 72,
   front: { type: 'none', w: 0, h: 0, top: 0 },   // the camera sits in the bezel
   buttons: 'none',
-  statusBar: 56,
+  statusBar: 0,
+  // Safari's own bars here, instead of the iPhone ones in browsers.js
+  chrome: { safari: { portrait: { top: 88, bottom: 0 }, landscape: { top: 88, bottom: 0 } } },
   homeIndicator: 0,
   landscapeSafeArea: { top: 0, right: 0, bottom: 0, left: 0 },
   beta: true,

@@ -21,6 +21,7 @@ const SKINS = {
   vivaldi:       $('uiVivaldi'),
   chromeAndroid: $('uiChrome'),
   chromeNav:     $('uiChromeNav'),
+  homeView:      $('uiHomeView'),
 };
 
 const MAX_TABS = 4;
@@ -403,7 +404,9 @@ function geometry() {
 /** A screen with the browser's bars across the top and bottom — every phone. */
 function barGeometry(shared) {
   const { landscape, w, h } = shared;
-  const bars = browser.chrome[landscape ? 'landscape' : 'portrait'];
+  // a device can lay the browser out its own way (HomeView's Safari has one
+  // bar along the top, and nothing at the foot)
+  const bars = (device.chrome?.[browser.id] || browser.chrome)[landscape ? 'landscape' : 'portrait'];
 
   // iOS hides the status bar in landscape; Android keeps it
   const statusH = (landscape && device.platform === 'ios') ? 0 : device.statusBar;
@@ -656,6 +659,7 @@ function activeSkins({ landscape, duo }) {
   // Compare keeps the skin: each of its devices is a whole phone, and the
   // second one gets its own copy of these (see compare.js)
   if (!S.showChrome || duo) return [];
+  if (device.frame === 'homeview') return browser.id === 'safari' ? [SKINS.homeView] : [];
   switch (browser.id) {
     case 'chrome-android': return [SKINS.chromeAndroid, SKINS.chromeNav];
     case 'chrome-ios':     return [SKINS.chromeIosTop, SKINS.chromeIosBot];

@@ -1804,14 +1804,60 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
     linear-gradient(90deg, #a9a9ad, #e4e4e8 25%, #f0f0f3 50%, #dcdcdf 78%, #9c9ca0);
   box-shadow: 0 10px 22px rgba(0, 0, 0, .22);
 }
-/* its status strip: only the clock, at the right, as Apple's own apps show it */
-#phone.homeview .statusbar.ios .time {
-  left: auto;
-  right: 24px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 16px;
-}
-#phone.homeview .statusbar.ios .indicators { display: none; }
 #phone.homeview .homebar { display: none; }
+
+/* Safari on HomeView: one row along the top — close, the address pill, the
+   clock — over a strip in the page's colour, the page starting beneath it.
+   From a photograph of the device; Apple has published nothing about it. */
+.homeview-top {
+  gap: 12px;
+  padding: 0 22px;
+  background: var(--bar-solid);
+  color: var(--bar-fg);
+}
+.homeview-top .glass {
+  border: 0;
+  padding: 0;
+  color: var(--ui-fg);
+  background: color-mix(in srgb, var(--ui-neutral) 62%, transparent);
+  box-shadow:
+    0 0 0 .5px color-mix(in srgb, var(--ui-fg) 12%, transparent),
+    0 6px 18px rgba(0, 0, 0, .14);
+}
+.homeview-top .round {
+  width: 44px; height: 44px; flex: none;
+  border-radius: 22px;
+  display: grid; place-items: center;
+}
+.homeview-top .gpill {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 0 16px;
+}
+.homeview-top .gpill .host { flex: 1; font: 400 16px -apple-system, system-ui, sans-serif; opacity: .85; }
+.homeview-top .gicon { display: grid; place-items: center; opacity: .55; flex: none; }
+.homeview-top svg {
+  width: 20px; height: 20px;
+  fill: none; stroke: currentColor;
+  stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+}
+.homeview-top .mini {
+  flex: none; width: 30px; height: 30px;
+  border: 0; padding: 0; border-radius: 15px;
+  background: transparent; color: inherit;
+  display: grid; place-items: center; opacity: .7;
+}
+.homeview-top .mini svg { width: 17px; height: 17px; }
+.homeview-top .time {
+  flex: none;
+  min-width: 52px;
+  text-align: right;
+  font: 600 17px/1 -apple-system, "SF Pro Text", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
 #phone.homeview .btn { display: none; }
