@@ -209,6 +209,20 @@ async function applyEmulation(wcId, opts) {
 
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 
+const SHELL_HTML = path.join(__dirname, 'shell', 'index.html');
+
+// Compared by decoded path, not by string: loadFile() and pathToFileURL()
+// percent-encode an installed path's spaces ("iPhone Browser.app") the same
+// way today, but nothing promises they always will.
+function isShellUrl(target) {
+  try {
+    const u = new URL(target);
+    return u.protocol === 'file:' && decodeURIComponent(u.pathname) === SHELL_HTML;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Where the window opens. The first time: the full height of the usable screen,
  * menu bar down to the Dock, so the phone is drawn big enough to read. workArea
@@ -261,11 +275,29 @@ function createWindow() {
       webviewTag: true,
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      // The preload needs only contextBridge + ipcRenderer, both of which the
+      // sandboxed renderer provides — so the shell runs in Chromium's OS
+      // sandbox like any other renderer, and a bug in it can't reach Node.
+      sandbox: true,
     },
   });
 
-  win.loadFile(path.join(__dirname, 'shell', 'index.html'));
+  win.loadFile(SHELL_HTML);
+
+  // The shell is one local page, and only ever that page. Its frame holds the
+  // preload's IPC bridge, so a renderer that was somehow talked into going
+  // elsewhere would hand that bridge to whatever it loaded — any navigation
+  // that isn't the shell's own file is cancelled. Pages the user opens live in
+  // <webview> guests, which navigate freely and never see this handler.
+  win.webContents.on('will-navigate', (event, target) => {
+    if (!isShellUrl(target)) {
+      event.preventDefault();
+      console.warn('[shell] blocked navigation to', target);
+    }
+  });
+  // …and it opens no windows of its own; window.open from a page is handled
+  // on the guest, below.
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.once('ready-to-show', () => win.show());
 
   // Nothing resizes the window programmatically any more, so every change here
@@ -524,10 +556,79 @@ ipcMain.handle('window:close', () => {
   if (win && !win.isDestroyed()) win.close();
 });
 
+/* ------------------------------------------------------------ permissions
+   Electron grants every permission a page asks for unless told otherwise —
+   camera, microphone, geolocation, notifications — so any site opened in the
+   phone could have had them, with no prompt. Nothing this app does needs a
+   page to reach the Mac's hardware or the user's position, so it's deny by
+   default, and a site sees what it would from a user who tapped Don't Allow.
+
+   Allowed, because a page can need them to behave and none leaves the page:
+     fullscreen                 video players; Esc leaves it, as in Safari
+     pointerLock, keyboardLock  games and 3D viewers; also released with Esc
+     clipboard-sanitized-write  "Copy" buttons — write-only, so a page can put
+                                text on the clipboard but never read it
+   Refused, with the reason it's on the list:
+     media                      camera and microphone (video or audio)
+     geolocation                the Mac's position
+     notifications              system banners from a preview tool
+     midi, midiSysex            instruments plugged into the Mac
+     display-capture            screen sharing of the Mac itself
+     clipboard-read             whatever the user last copied
+     idle-detection             whether the user is at the keyboard
+     openExternal               a page launching another app via a URL scheme
+     usb, serial, hid           devices on the Mac (chooser handler below too)
+     storage-access, speaker-selection, window-management, fileSystem, and
+     anything Chromium adds later — not on the allow list, so refused. */
+const ALLOWED_PERMISSIONS = new Set([
+  'fullscreen', 'pointerLock', 'keyboardLock', 'clipboard-sanitized-write',
+]);
+
+function lockDownPermissions(ses) {
+  // Asynchronous requests: getUserMedia, Notification.requestPermission,
+  // navigator.geolocation.getCurrentPosition, …
+  ses.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(ALLOWED_PERMISSIONS.has(permission));
+  });
+  // Synchronous checks: navigator.permissions.query, Notification.permission,
+  // and the gate on device labels in enumerateDevices. Must agree with the
+  // request handler, or a page is told "granted" and then refused.
+  ses.setPermissionCheckHandler((_wc, permission) =>
+    ALLOWED_PERMISSIONS.has(permission));
+  // WebUSB / Web Serial / WebHID pick a device through a chooser the app would
+  // have to draw. It draws none, so there is never a device to grant.
+  ses.setDevicePermissionHandler(() => false);
+}
+
 /* ------------------------------------------------------------ web contents */
 
 app.on('web-contents-created', (_e, contents) => {
-  if (contents.getType() !== 'webview') return;
+  if (contents.getType() !== 'webview') {
+    // Any window that embeds a <webview> — the shell — is told what a guest
+    // may run with, whatever the tag said. The tag's own attributes
+    // (partition, allowpopups, useragent, src) arrive as `params` and stay as
+    // they are; only the webPreferences a page must never have are forced.
+    contents.on('will-attach-webview', (event, webPreferences, params) => {
+      delete webPreferences.preload;
+      delete webPreferences.preloadURL;
+      webPreferences.nodeIntegration = false;
+      webPreferences.nodeIntegrationInSubFrames = false;
+      webPreferences.nodeIntegrationInWorker = false;
+      webPreferences.contextIsolation = true;
+      webPreferences.sandbox = true;
+      webPreferences.webSecurity = true;
+      webPreferences.allowRunningInsecureContent = false;
+      webPreferences.experimentalFeatures = false;
+      // Every tab is created by createTab() on the one shared partition, which
+      // is also the one the permission handlers are set on. A guest asking for
+      // any other session is not one this app made.
+      if (params.partition !== 'persist:ios') {
+        event.preventDefault();
+        console.warn('[webview] refused guest on partition', params.partition);
+      }
+    });
+    return;
+  }
 
   // target=_blank / window.open should stay inside the phone, like on iOS.
   contents.setWindowOpenHandler(({ url }) => {
@@ -561,7 +662,14 @@ app.on('certificate-error', (event, _wc, url, _error, _cert, callback) => {
 
 /* ------------------------------------------------------------- lifecycle */
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  // Before any webContents exists, so no page ever sees the default policy.
+  // Both sessions: the webviews' persist:ios, and the default one the shell
+  // itself (and a detached DevTools window) runs on.
+  lockDownPermissions(session.fromPartition('persist:ios'));
+  lockDownPermissions(session.defaultSession);
+  createWindow();
+});
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
