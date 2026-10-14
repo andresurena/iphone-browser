@@ -459,6 +459,7 @@ function layout() {
   phone.classList.toggle('android', device.platform === 'android');
   phone.classList.toggle('pixel', device.buttons === 'pixel');
   phone.classList.toggle('no-buttons', device.buttons === 'none');
+  phone.classList.toggle('homeview', device.frame === 'homeview');
   phone.classList.toggle('no-front', device.front.type === 'none');
   phone.classList.toggle('rail', g.rail);
   phone.classList.toggle('split', g.split);
@@ -520,7 +521,8 @@ function layout() {
   const bounds = poseBounds();
   // Compare stands a second phone beside the first — the pair is what gets fitted
   const bodyW = g.w + bz.l + bz.r + (g.compare ? g.offsetX : 0);
-  const bodyH = g.h + bz.t + bz.b;
+  // a device on a base (HomeView) is fitted with the base, drawn below the frame
+  const bodyH = g.h + bz.t + bz.b + (device.foot || 0);
   const fitW = bounds ? bounds.w : bodyW;
   const fitH = bounds ? bounds.h : bodyH;
   const reserve = $('poseAction').hidden ? 0 : 52;   // room for the laptop's button
@@ -790,10 +792,10 @@ function deviceMenuSections() {
   // Android above iPhone, newest first in each: the oldest iPhone sits nearest
   // the button, which is where the menu opens from
   const on = enabledDevices();
-  return ['android', 'ios'].map((platform) => ({
-    label: PLATFORM_LABELS[platform],
-    items: on.filter((d) => d.platform === platform).map((d) => ({ value: d.id, label: d.name })),
-  }));
+  return ['android', 'home', 'ios'].map((family) => ({
+    label: PLATFORM_LABELS[family],
+    items: on.filter((d) => deviceFamily(d) === family).map((d) => ({ value: d.id, label: d.name })),
+  })).filter((section) => section.items.length);
 }
 
 function bindMenus() {
@@ -861,7 +863,7 @@ function paintMenus() {
   $('browserMenu').hidden = enabledBrowsersFor(deviceEntry).length < 2;   // nothing to choose
   $('rotate').disabled = Boolean(device.orientation) || compareActive();
   $('rotate').title = compareActive() ? 'Compare is upright only'
-    : device.orientation ? 'This display has a fixed orientation'
+    : device.orientation ? (device.fixedNote || 'This display has a fixed orientation')
       : 'Rotate (⌘⌃R)';
   label('uaMenu', uaById(S.userAgentId).name);
   label('zoomMenu', (ZOOMS.find((z) => z.value === S.zoom) || ZOOMS[0]).label);
@@ -1048,7 +1050,7 @@ function wireUI() {
 
 function rotate() {
   if (compareActive()) { toast('Compare is upright only — turn it off to rotate.'); return; }
-  if (device.orientation) { toast('This display has a fixed orientation — pick another to rotate.'); return; }
+  if (device.orientation) { toast(device.fixedNote || 'This display has a fixed orientation — pick another to rotate.'); return; }
   set({ orientation: S.orientation === 'portrait' ? 'landscape' : 'portrait' });
 }
 

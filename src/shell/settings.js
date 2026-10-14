@@ -4,7 +4,9 @@
    The panel behind the gear: General, Devices, Browsers, About. Shares
    shell.js's globals and helpers (S, set, pickDevice, …). */
 
-const PLATFORM_LABELS = { ios: 'iPhone', android: 'Android' };
+const PLATFORM_LABELS = { ios: 'iPhone', android: 'Android', home: 'Home \u00b7 Beta' };
+/** The group a device is listed under: a family of its own, else its platform. */
+const deviceFamily = (d) => d.family || d.platform;
 
 function openSettings(tab = 'general') {
   closeMenu();
@@ -76,10 +78,10 @@ function renderDeviceToggles() {
   const box = $('deviceToggles');
   box.innerHTML = '';
   const onCount = enabledDevices().length;
-  for (const platform of ['ios', 'android']) {
-    const list = DEVICES.filter((d) => d.platform === platform);
+  for (const family of ['ios', 'home', 'android']) {
+    const list = DEVICES.filter((d) => deviceFamily(d) === family);
     if (!list.length) continue;
-    box.appendChild(groupHeading(PLATFORM_LABELS[platform]));
+    box.appendChild(groupHeading(PLATFORM_LABELS[family]));
     for (const d of list) {
       const on = isDeviceOn(d.id);
       box.appendChild(toggleRow({

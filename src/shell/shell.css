@@ -1758,3 +1758,51 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
 .breakout-lives i { width: 9px; height: 9px; border-radius: 50%; background: #28c840; }
 .breakout-lives i.lost { background: var(--chrome-line); }
 .breakout-hint { margin-left: auto; }
+
+/* ========================================================= Apple HomeView
+   Beta — see APPLE_HOMEVIEW in devices.js for what's measured and what's
+   guessed. A square slab: a thin metal rim, a wide black bezel with the
+   camera in it, and the domed speaker base showing beneath. Drawn here
+   rather than from a bezel image: Apple has published no Design Resources
+   for it, and its product images have no transparent cutout. */
+#phone.homeview .frame {
+  --rim: 7px;
+  padding: calc(var(--bezel) - var(--rim));
+  border: var(--rim) solid #d6d6d9;
+  background: #000;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, .45) inset,
+    0 0 0 1px rgba(0, 0, 0, .22),
+    0 1px 0 rgba(255, 255, 255, .5);
+}
+/* the Center Stage camera, in the top bezel */
+#phone.homeview .frame::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  width: 11px;
+  height: 11px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 38%, #3a4350 0%, #0d1117 55%, #000 100%);
+  box-shadow: 0 0 0 1.5px #16181c;
+}
+/* the base: the dome's lower part and its speaker mesh, seen straight on */
+#phone.homeview .frame::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 58%;
+  height: 96px;
+  transform: translateX(-50%);
+  z-index: -1;
+  border-radius: 0 0 44% 44% / 0 0 100% 100%;
+  background:
+    repeating-radial-gradient(circle at 0 0, rgba(0, 0, 0, .55) 0 .9px, transparent 1px 100%) 0 0 / 5px 5px,
+    linear-gradient(90deg, #a9a9ad, #e4e4e8 25%, #f0f0f3 50%, #dcdcdf 78%, #9c9ca0);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, .22);
+}
+#phone.homeview .homebar { display: none; }
+#phone.homeview .btn { display: none; }

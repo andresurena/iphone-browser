@@ -164,8 +164,54 @@ const IPHONE_DUO = {
 
 // Newest first within each platform. The device menu opens upward from the
 // bottom bar, so this puts the oldest device nearest the button.
+/**
+ * Apple HomeView — the smart display, announced 13 October 2026, on sale
+ * 13 November. Beta: Apple has published the panel (1088 × 1088 px at 220 ppi,
+ * 7-inch, rounded corners) and that Safari is built in, and nothing else that
+ * a web page would need. Every other number here is an inference:
+ *
+ * - 544 × 544 pt at 2x is read from the density. 220 ppi at 1x would be twice
+ *   as fine as any Apple screen, unreadable from across a kitchen; at 2x it's
+ *   a little coarser than an iPad, which suits a display meant to be glanced
+ *   at from a distance. Apple hasn't said. (A beta asset named
+ *   `apple-logo-1088@2x~home.png` has been read both ways.)
+ * - The bezel (36 pt), the metal rim (7 pt), the screen's corners (72 pt) and
+ *   the camera's place in the top bezel are measured from Apple's straight-on
+ *   product image, scaled to the 544 pt reading above.
+ * - No status bar and no home indicator are drawn: none shows in any of
+ *   Apple's images, and the clock and controls on the faces are face content.
+ *   The safe area is reported as zero all round for the same reason.
+ * - Safari's own bars on it are undocumented; the iOS 26 Safari skin stands in.
+ *
+ * The screen is square and the device only tilts, so there is no rotation.
+ * https://www.apple.com/apple-homeview/specs/
+ */
+const APPLE_HOMEVIEW = {
+  id: 'apple-homeview',
+  name: 'Apple HomeView',
+  platform: 'ios',        // Safari, iOS-derived software ("version 27.2")
+  family: 'home',         // its own group in the device menu
+  browsers: ['safari'],
+  frame: 'homeview',      // drawn by its own CSS: metal rim, black bezel, dome base
+  foot: 96,               // room below the frame for the base
+  orientation: 'portrait',
+  fixedNote: 'Apple HomeView only tilts — its square screen doesn\u2019t rotate.',
+  width: 544,
+  height: 544,
+  dpr: 2,
+  bezel: 43,              // 36 bezel + 7 rim; the CSS splits them
+  screenRadius: 72,
+  front: { type: 'none', w: 0, h: 0, top: 0 },   // the camera sits in the bezel
+  buttons: 'none',
+  statusBar: 0,
+  homeIndicator: 0,
+  landscapeSafeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+  beta: true,
+};
+
 const DEVICES = [
   IPHONE_DUO,
+  APPLE_HOMEVIEW,
   {
     // Announced 9 Sept 2026, on sale 18 Sept. Apple's published panel is
     // 2868 x 1320 at 460ppi, which is the 17 Pro Max's exactly — so the page
