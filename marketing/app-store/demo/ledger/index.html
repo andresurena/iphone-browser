@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d1014">
+<title>Ledger</title>
+<!-- A fictional web app, made for the App Store screenshots. Its tab bar
+     pads itself by env(safe-area-inset-bottom), the way a real one should. -->
+<style>
+  :root { --bg: #0d1014; --card: #161b22; --line: #232a33; --ink: #f2f5f8; --dim: #8b97a6; --green: #3ddc84; --blue: #5b8cff; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 16px/1.45 -apple-system, system-ui, sans-serif; padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 6px; }
+  .who { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+  .av { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #5b8cff, #b06cff); }
+  .bell { width: 36px; height: 36px; border-radius: 50%; background: var(--card); display: grid; place-items: center; }
+  .bell svg { width: 18px; height: 18px; fill: none; stroke: var(--ink); stroke-width: 1.8; }
+  .balance { padding: 18px 20px 8px; }
+  .balance small { color: var(--dim); font-size: 14px; }
+  .balance h1 { margin-top: 4px; font: 700 44px/1.05 -apple-system, "SF Pro Display", system-ui, sans-serif; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .chip { display: inline-flex; gap: 6px; align-items: center; margin-top: 10px; padding: 5px 10px; border-radius: 999px; background: rgba(61, 220, 132, .12); color: var(--green); font-weight: 600; font-size: 14px; }
+  .chart { margin: 14px 12px 0; }
+  .chart svg { width: 100%; height: 170px; display: block; }
+  .seg { display: flex; margin: 10px 20px 18px; padding: 3px; border-radius: 12px; background: var(--card); }
+  .seg b { flex: 1; text-align: center; padding: 7px 0; border-radius: 9px; font-size: 14px; font-weight: 600; color: var(--dim); }
+  .seg b.on { background: #2a323d; color: var(--ink); }
+  .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 0 20px 20px; }
+  .actions div { background: var(--card); border-radius: 18px; padding: 14px 12px; text-align: center; font-weight: 600; font-size: 14px; }
+  .actions i { display: grid; place-items: center; width: 40px; height: 40px; margin: 0 auto 8px; border-radius: 50%; background: rgba(91, 140, 255, .16); color: var(--blue); font-style: normal; font-size: 20px; }
+  h2 { padding: 4px 20px 10px; font-size: 18px; }
+  .list { margin: 0 16px; background: var(--card); border-radius: 20px; padding: 4px 0; }
+  .tx { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .tx:last-child { border-bottom: 0; }
+  .tx i { flex: none; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-style: normal; font-size: 19px; }
+  .tx div { flex: 1; min-width: 0; } .tx div small { display: block; color: var(--dim); font-size: 13px; }
+  .tx b { font-variant-numeric: tabular-nums; } .tx b.in { color: var(--green); }
+  nav { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-around; padding: 10px 0 calc(10px + env(safe-area-inset-bottom)); background: rgba(13, 16, 20, .92); border-top: 1px solid var(--line); }
+  nav span { display: grid; justify-items: center; gap: 3px; font-size: 11px; color: var(--dim); font-weight: 600; }
+  nav span.on { color: var(--blue); }
+  nav span em { width: 24px; height: 24px; border-radius: 7px; background: currentColor; opacity: .9; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="who"><i class="av"></i>Good morning, Sam</div>
+    <div class="bell"><svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg></div>
+  </header>
+  <section class="balance">
+    <small>Total balance</small>
+    <h1>£12,480.32</h1>
+    <div class="chip">▲ 2.4% this month</div>
+  </section>
+  <div class="chart">
+    <svg viewBox="0 0 400 170" preserveAspectRatio="none">
+      <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b8cff" stop-opacity=".45"/><stop offset="1" stop-color="#5b8cff" stop-opacity="0"/></linearGradient></defs>
+      <path d="M0 130 C40 120 60 140 90 118 S150 70 190 92 S250 120 290 74 S350 30 400 40 L400 170 L0 170Z" fill="url(#g)"/>
+      <path d="M0 130 C40 120 60 140 90 118 S150 70 190 92 S250 120 290 74 S350 30 400 40" fill="none" stroke="#5b8cff" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="400" cy="40" r="6" fill="#5b8cff"/>
+    </svg>
+  </div>
+  <div class="seg"><b>1D</b><b>1W</b><b class="on">1M</b><b>1Y</b><b>All</b></div>
+  <div class="actions"><div><i>↑</i>Send</div><div><i>↓</i>Request</div><div><i>＋</i>Top up</div></div>
+  <h2>Recent</h2>
+  <div class="list">
+    <div class="tx"><i style="background:#2b1d10">☕</i><div>Halftone Coffee<small>Today · Food &amp; drink</small></div><b>−£11.00</b></div>
+    <div class="tx"><i style="background:#10241a">💼</i><div>Salary<small>Yesterday · Income</small></div><b class="in">+£3,240.00</b></div>
+    <div class="tx"><i style="background:#1a1d33">🎧</i><div>Music subscription<small>Mon · Entertainment</small></div><b>−£10.99</b></div>
+    <div class="tx"><i style="background:#2a1720">🚲</i><div>City bikes<small>Sun · Transport</small></div><b>−£4.50</b></div>
+  </div>
+  <nav>
+    <span class="on"><em></em>Home</span><span><em></em>Cards</span><span><em></em>Insights</span><span><em></em>Profile</span>
+  </nav>
+</body>
+</html>

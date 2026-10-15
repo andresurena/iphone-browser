@@ -271,6 +271,13 @@ function renderCompare(g) {
   }
 
   const right = compareRightId;   // already settled in compareGeometry
+  // a tab that loaded before Compare was on was never sampled for its colour,
+  // and its device would wear a black status bar over a light page until reload
+  const rightTab = tabById(right);
+  if (rightTab && !rightTab.theme && !rightTab.sampling) {
+    rightTab.sampling = true;
+    sampleTheme(rightTab.el).finally(() => { rightTab.sampling = false; });
+  }
   const bz = bezelMargins(g.landscape);
   const key = JSON.stringify([
     g.w, g.h, g.offsetX, bz, right, S.showChrome, S.colorScheme,

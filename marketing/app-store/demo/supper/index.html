@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fbf7f2">
+<title>Supper — Tuesday Tomato Rigatoni</title>
+<!-- A fictional recipe site, made for the App Store screenshots. -->
+<style>
+  :root { --bg: #fbf7f2; --ink: #231f1c; --dim: #7a6f66; --red: #c8392b; --leaf: #3f7d4e; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 16px/1.5 -apple-system, system-ui, sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; }
+  .logo { font: italic 700 24px/1 ui-serif, Georgia, serif; color: var(--red); letter-spacing: -.02em; }
+  .crumbs { font-size: 13px; color: var(--dim); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+  .hero { margin: 0 14px; border-radius: 24px; padding: 22px 20px 20px; background:
+    radial-gradient(circle at 82% 30%, #ff8a6a 0 22%, transparent 23%),
+    radial-gradient(circle at 70% 58%, #ff6f52 0 16%, transparent 17%),
+    radial-gradient(circle at 90% 70%, #4f9a5f 0 7%, transparent 8%),
+    linear-gradient(160deg, #e24a35, #b72f22); color: #fff; }
+  .hero h1 { font: 700 34px/1.04 ui-serif, Georgia, serif; letter-spacing: -.025em; max-width: 11ch; }
+  .meta { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+  .meta span { padding: 6px 11px; border-radius: 999px; background: rgba(255,255,255,.18); font-size: 14px; font-weight: 600; }
+  .start { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 16px 14px 0; padding: 16px; border-radius: 18px; background: var(--ink); color: #fff; font-weight: 700; font-size: 17px; }
+  .start i { width: 0; height: 0; border-left: 12px solid #fff; border-top: 8px solid transparent; border-bottom: 8px solid transparent; }
+  h2 { padding: 22px 20px 8px; font: 700 21px/1.2 ui-serif, Georgia, serif; }
+  ul { list-style: none; padding: 0 20px; }
+  li { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid rgba(35,31,28,.08); font-size: 16px; }
+  li em { flex: none; width: 24px; height: 24px; border-radius: 7px; box-shadow: inset 0 0 0 2px rgba(35,31,28,.25); }
+  li.done { color: var(--dim); text-decoration: line-through; }
+  li.done em { background: var(--leaf); box-shadow: none; position: relative; }
+  li.done em::after { content: ''; position: absolute; left: 8px; top: 4px; width: 6px; height: 11px; border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
+  li b { margin-left: auto; font-weight: 600; color: var(--dim); font-size: 15px; text-decoration: none; }
+  .step { display: flex; gap: 14px; padding: 8px 20px 14px; }
+  .step span { flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--red); color: #fff; font-weight: 700; display: grid; place-items: center; font-size: 15px; }
+  .step p { font-size: 16px; color: #3c3530; }
+  .timer { margin: 4px 20px 30px; padding: 14px 16px; border-radius: 16px; background: #fff; box-shadow: 0 1px 0 rgba(0,0,0,.04), inset 0 0 0 1px rgba(35,31,28,.08); display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
+  .timer b { font: 700 24px/1 -apple-system, system-ui, sans-serif; font-variant-numeric: tabular-nums; color: var(--red); }
+</style>
+</head>
+<body>
+  <header><div class="logo">Supper</div><div class="crumbs">Pasta · 30 min</div></header>
+  <section class="hero">
+    <h1>Tuesday Tomato Rigatoni</h1>
+    <div class="meta"><span>30 min</span><span>Serves 4</span><span>Vegetarian</span></div>
+  </section>
+  <div class="start"><i></i>Start cooking</div>
+  <h2>Ingredients</h2>
+  <ul>
+    <li class="done"><em></em>Rigatoni<b>400 g</b></li>
+    <li class="done"><em></em>Cherry tomatoes<b>500 g</b></li>
+    <li><em></em>Garlic, sliced<b>4 cloves</b></li>
+    <li><em></em>Olive oil<b>3 tbsp</b></li>
+    <li><em></em>Basil, torn<b>a handful</b></li>
+    <li><em></em>Parmesan<b>60 g</b></li>
+  </ul>
+  <h2>Method</h2>
+  <div class="step"><span>1</span><p>Roast the tomatoes with the garlic and oil at 200°C until they burst, about 20 minutes.</p></div>
+  <div class="timer">Roast tomatoes<b>18:42</b></div>
+  <div class="step"><span>2</span><p>Cook the rigatoni, keep a mug of the water, and toss everything together with the basil.</p></div>
+</body>
+</html>

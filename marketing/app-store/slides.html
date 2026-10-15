@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Responsive Phone Browser — App Store screenshots</title>
+<!--
+  The Mac App Store screenshots, as code. Each slide is a 1440 x 900 page,
+  rendered at 2x to 2880 x 1800 (the largest 16:10 size App Store Connect
+  takes) by render.sh, which opens this file once per slide: slides.html#1
+  to #7. Every device in them is a capture of the app itself (capture.mjs);
+  the numbers on slide 6 are what the page in that capture reported.
+
+  Rules the set follows, from the App Store's own guidelines and from what
+  the best-selling listings do:
+  - one idea per slide, headline first, readable at thumbnail size
+  - the app's real UI, big — no mockups, no stock devices
+  - our own demo content only: no third-party sites, logos or trademarks
+  - no prices, no "best", no reviews or rankings
+  - one visual system: the same ground, type and spacing on every slide
+-->
+<style>
+  :root {
+    --ground: #f2f5f7;     /* = BACKDROP in capture.mjs: devices sit on it seamlessly */
+    --ink: #1d1d1f;
+    --dim: #6e6e73;
+    --accent: #2b22d8;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1440px; height: 900px; overflow: hidden; background: var(--ground); }
+  body { font-family: -apple-system, "SF Pro Display", system-ui, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
+
+  .slide { position: relative; width: 1440px; height: 900px; overflow: hidden; display: none;
+    background: radial-gradient(120% 90% at 50% 0%, #ffffff 0%, var(--ground) 60%); }
+  .slide.on { display: block; }
+
+  .eyebrow { font-size: 17px; font-weight: 600; letter-spacing: .02em; color: var(--accent); }
+  h1 { font-size: 64px; line-height: 1.04; font-weight: 700; letter-spacing: -.028em; }
+  .sub { font-size: 23px; line-height: 1.4; color: var(--dim); letter-spacing: -.005em; }
+
+  /* headline across the top, product below */
+  .top { position: absolute; left: 0; right: 0; top: 64px; text-align: center; }
+  .top .eyebrow { margin-bottom: 12px; }
+  .top .sub { margin: 16px auto 0; max-width: 940px; }
+
+  /* headline at the left, product at the right */
+  .left { position: absolute; left: 88px; top: 0; bottom: 0; width: 430px; display: flex; flex-direction: column; justify-content: center; }
+  .left .eyebrow { margin-bottom: 16px; }
+  .left .sub { margin-top: 20px; }
+
+  /* a capture of a device on the ground colour: its edges feathered, so a
+     shadow cut by the capture's crop never shows as a line */
+  .dev { position: absolute; display: block;
+    -webkit-mask-image:
+      linear-gradient(to right, transparent, #000 5%, #000 95%, transparent),
+      linear-gradient(to bottom, transparent, #000 5%, #000 95%, transparent);
+    -webkit-mask-composite: source-in; }
+
+  /* the app's window: its capture, with the Mac's frame and traffic lights */
+  .window { position: absolute; border-radius: 14px; overflow: hidden; background: #fff;
+    box-shadow: 0 0 0 1px rgba(0,0,0,.08), 0 2px 6px rgba(0,0,0,.05), 0 40px 90px rgba(29, 29, 31, .22); }
+  .window img { display: block; width: 100%; }
+  .lights { position: absolute; display: flex; gap: 8px; }
+  .lights i { width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; box-shadow: inset 0 0 0 .5px rgba(0,0,0,.18); }
+  .lights i:nth-child(2) { background: #febc2e; } .lights i:nth-child(3) { background: #28c840; }
+
+  .callout { position: absolute; display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-radius: 16px;
+    background: var(--ink); color: #fff; font-size: 19px; font-weight: 600; letter-spacing: -.01em;
+    box-shadow: 0 14px 40px rgba(29, 29, 31, .25); }
+  .callout code { font: 600 18px ui-monospace, "SF Mono", monospace; color: #9fd0ff; }
+  .callout::after { content: ''; position: absolute; width: 14px; height: 14px; background: var(--ink); transform: rotate(45deg); }
+  .callout.up::after { top: -6px; left: 40px; }
+
+  /* slide 6: what the page sees */
+  .readout { position: absolute; left: 760px; top: 250px; width: 560px; background: #fff; border-radius: 26px; padding: 10px 28px;
+    box-shadow: 0 0 0 1px rgba(0,0,0,.05), 0 24px 60px rgba(29, 29, 31, .10); }
+  .readout div { display: flex; justify-content: space-between; align-items: baseline; padding: 20px 0; border-bottom: 1px solid #ececf0; }
+  .readout div:last-child { border-bottom: 0; }
+  .readout span { font-size: 19px; color: var(--dim); white-space: nowrap; margin-right: 24px; }
+  .readout b { font-size: 26px; font-weight: 650; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+  .readout small { display: block; margin-top: 4px; font: 500 13px ui-monospace, "SF Mono", monospace; color: var(--dim); text-align: right; }
+
+  .badge { display: inline-block; padding: 5px 12px; border-radius: 999px; background: rgba(43, 34, 216, .1); color: var(--accent); font-size: 15px; font-weight: 650; letter-spacing: .01em; }
+</style>
+<script src="captures/numbers.js"></script>
+</head>
+<body>
+
+<!-- 1 ------------------------------------------------------------- hero -->
+<section class="slide" id="s1">
+  <div class="left">
+    <div class="eyebrow">For people who build for the web</div>
+    <h1>Your site, on a phone. Right on your Mac.</h1>
+    <p class="sub">A real mobile viewport inside a real device frame. No phone on your desk, no mirroring.</p>
+  </div>
+  <div class="window" style="left: 560px; top: 96px; width: 1000px;">
+    <img src="captures/window-hero.png" alt="">
+    <div class="lights" style="left: 11px; top: 15px;"><i></i><i></i><i></i></div>
+  </div>
+</section>
+
+<!-- 2 ------------------------------------------------------- iPhone Duo -->
+<section class="slide" id="s2">
+  <div class="top">
+    <div class="eyebrow">Ready on day one</div>
+    <h1>See how your site folds.</h1>
+    <p class="sub">iPhone Duo's inner and outer displays, Split View, and the book, tent and laptop poses.</p>
+  </div>
+  <img class="dev" src="captures/dev-duo-book-halftone.png" style="left: 92px; top: 300px; height: 590px;" alt="">
+  <img class="dev" src="captures/dev-duo-outer-supper.png" style="left: 900px; top: 330px; height: 560px;" alt="">
+</section>
+
+<!-- 3 -------------------------------------------------------- every screen -->
+<section class="slide" id="s3">
+  <div class="top">
+    <div class="eyebrow">iPhone and Android</div>
+    <h1>Every screen it will meet.</h1>
+    <p class="sub">The latest iPhones and Pixels, with Safari, Chrome or Vivaldi drawn around your page.</p>
+  </div>
+  <img class="dev" src="captures/dev-16-chrome-halftone.png" style="left: 118px; top: 300px; height: 600px;" alt="">
+  <img class="dev" src="captures/dev-18promax-safari-halftone.png" style="left: 516px; top: 268px; height: 660px;" alt="">
+  <img class="dev" src="captures/dev-pixel10pro-chrome-halftone.png" style="left: 966px; top: 300px; height: 600px;" alt="">
+</section>
+
+<!-- 4 ------------------------------------------------------------ compare -->
+<section class="slide" id="s4">
+  <div class="top">
+    <div class="eyebrow">Compare</div>
+    <h1>Two devices. One glance.</h1>
+    <p class="sub">Put two pages side by side, each at the device's full width.</p>
+  </div>
+  <img class="dev" src="captures/dev-compare-18pro.png" style="left: 50%; transform: translateX(-50%); top: 262px; height: 680px;" alt="">
+</section>
+
+<!-- 5 ---------------------------------------------------------- localhost -->
+<section class="slide" id="s5">
+  <div class="top" style="top: 56px;">
+    <div class="eyebrow">Built for development</div>
+    <h1>Your localhost, on a phone.</h1>
+    <p class="sub">Point it at your dev server. Self-signed certificates on local hosts just work.</p>
+  </div>
+  <div class="window" style="left: 100px; top: 262px; width: 1240px;">
+    <img src="captures/window-localhost.png" alt="">
+    <div class="lights" style="left: 14px; top: 19px;"><i></i><i></i><i></i></div>
+  </div>
+  <div class="callout up" style="left: 300px; top: 338px;">Your dev server <code>localhost:5173</code></div>
+</section>
+
+<!-- 6 ------------------------------------------------------------ numbers -->
+<section class="slide" id="s6">
+  <div class="top" style="left: 96px; right: auto; text-align: left; width: 600px;">
+    <div class="eyebrow">Accurate</div>
+    <h1>Numbers you can check.</h1>
+    <p class="sub" style="margin-left: 0;">What the page actually sees on that device, not an approximation.</p>
+  </div>
+  <img class="dev" src="captures/dev-18promax-safari-ledger.png" style="left: 160px; top: 318px; height: 600px;" alt="">
+  <div class="readout" id="readout"></div>
+</section>
+
+<!-- 7 ----------------------------------------------------------- HomeView -->
+<section class="slide" id="s7">
+  <div class="top">
+    <div class="eyebrow"><span class="badge">Beta</span></div>
+    <h1>Square screens, too.</h1>
+    <p class="sub">Apple HomeView's 7-inch display, with Safari's bar along the top.</p>
+  </div>
+  <img class="dev" src="captures/dev-homeview-supper.png" style="left: 50%; transform: translateX(-50%); top: 284px; height: 600px;" alt="">
+</section>
+
+<script>
+  const n = Number(location.hash.slice(1)) || 1;
+  document.getElementById('s' + n).classList.add('on');
+
+  // slide 6: the values the page itself reported in the capture
+  const N = window.NUMBERS;
+  if (N) {
+    const [t, r, b, l] = N.safe;
+    const safe = b && !t ? `${b} pt at the bottom` : `${t} · ${r} · ${b} · ${l}`;
+    const version = (N.ua.match(/Version\/([\d.]+)/) || [])[1];
+    const rows = [
+      ['Viewport', `${N.width} × ${N.height}`, ''],
+      ['Pixel ratio', `${N.dpr}x`, ''],
+      ['Safe area', safe, 'Safari’s floating bar'],
+      ['Touch points', `${N.touch}`, ''],
+      ['User agent', `Safari ${version || ''}`.trim(), N.ua.replace(/^Mozilla\/5\.0 /, '').slice(0, 58) + '…'],
+    ];
+    document.getElementById('readout').innerHTML = rows.map(([k, v, note]) =>
+      `<div><span>${k}</span><b>${v}${note ? `<small>${note}</small>` : ''}</b></div>`).join('');
+  }
+</script>
+</body>
+</html>

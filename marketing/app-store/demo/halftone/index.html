@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4ece1">
+<title>Halftone Coffee Roasters</title>
+<!-- A fictional brand, made for the App Store screenshots: our own content,
+     so nothing of anyone else's appears in the listing. -->
+<style>
+  :root { --cream: #f4ece1; --ink: #1d1a17; --dim: #6f655b; --rust: #d4502a; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--cream); color: var(--ink); font: 16px/1.5 -apple-system, system-ui, sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; }
+  .logo { font: 700 22px/1 ui-serif, Georgia, serif; letter-spacing: -.02em; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, #ffb08f, var(--rust) 60%); }
+  .bag { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; background: var(--ink); color: var(--cream); font-weight: 600; font-size: 14px; }
+  .hero { padding: 26px 22px 30px; }
+  .eyebrow { font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--rust); }
+  h1 { margin-top: 12px; font: 700 clamp(44px, 12vw, 64px)/0.98 ui-serif, Georgia, serif; letter-spacing: -.035em; }
+  .hero p { margin-top: 16px; max-width: 30ch; color: var(--dim); font-size: 17px; }
+  .ctas { display: flex; gap: 10px; margin-top: 22px; }
+  .btn { padding: 14px 20px; border-radius: 14px; font-weight: 600; font-size: 16px; border: 0; }
+  .btn.primary { background: var(--rust); color: #fff; }
+  .btn.ghost { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1.5px rgba(29, 26, 23, .18); }
+  .section { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 22px 12px; }
+  .section h2 { font: 700 22px/1.2 ui-serif, Georgia, serif; }
+  .section a { color: var(--rust); font-weight: 600; font-size: 15px; text-decoration: none; }
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 0 22px 28px; }
+  @media (min-width: 600px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+  .tile { border-radius: 22px; padding: 16px 16px 14px; color: #fff; display: flex; flex-direction: column; min-height: 214px; }
+  .tile svg { width: 64px; height: 84px; margin: 4px auto 12px; display: block; }
+  .tile b { font-size: 17px; }
+  .tile span { font-size: 14px; opacity: .8; }
+  .tile .row { margin-top: auto; display: flex; justify-content: space-between; align-items: end; }
+  .tile .price { font-weight: 700; font-size: 16px; opacity: 1; }
+  .t1 { background: #d4502a; } .t2 { background: #1f3d36; } .t3 { background: #e0a526; color: #2b1d05; } .t4 { background: #3b3486; }
+  .t5 { background: #8b5e3c; } .t6 { background: #2f6f8f; }
+  .note { margin: 0 22px 28px; padding: 18px; border-radius: 20px; background: #fff8ef; box-shadow: inset 0 0 0 1px rgba(29,26,23,.08); display: flex; gap: 14px; align-items: center; }
+  .note i { flex: none; width: 44px; height: 44px; border-radius: 12px; background: #1f3d36; display: grid; place-items: center; color: #f4ece1; font-style: normal; font-size: 22px; }
+  .note p { font-size: 15px; color: var(--dim); } .note p b { color: var(--ink); display: block; font-size: 16px; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="logo"><i class="dot"></i>halftone</div>
+    <div class="bag">Bag · 2</div>
+  </header>
+  <section class="hero">
+    <div class="eyebrow">Roasted every Tuesday</div>
+    <h1>Small batches. Big mornings.</h1>
+    <p>Single-origin coffee, roasted in small lots and at your door within the week.</p>
+    <div class="ctas"><button class="btn primary">Shop coffee</button><button class="btn ghost">Subscribe</button></div>
+  </section>
+  <div class="section"><h2>This week's roasts</h2><a href="#">See all</a></div>
+  <div class="grid">
+    <div class="tile t1"><svg viewBox="0 0 64 84"><path d="M10 14h44l4 66H6z" fill="#fff" opacity=".92"/><path d="M10 14l6-10h32l6 10" fill="#fff" opacity=".7"/><circle cx="32" cy="46" r="9" fill="#d4502a"/></svg><b>Ember</b><span>Ethiopia · Bright</span><div class="row"><span>250 g</span><span class="price">£11</span></div></div>
+    <div class="tile t2"><svg viewBox="0 0 64 84"><path d="M10 14h44l4 66H6z" fill="#fff" opacity=".92"/><path d="M10 14l6-10h32l6 10" fill="#fff" opacity=".7"/><rect x="22" y="38" width="20" height="16" rx="4" fill="#1f3d36"/></svg><b>Canopy</b><span>Colombia · Round</span><div class="row"><span>250 g</span><span class="price">£10</span></div></div>
+    <div class="tile t3"><svg viewBox="0 0 64 84"><path d="M10 14h44l4 66H6z" fill="#fff" opacity=".92"/><path d="M10 14l6-10h32l6 10" fill="#fff" opacity=".7"/><path d="M24 54l8-16 8 16z" fill="#e0a526"/></svg><b>Solstice</b><span>Kenya · Juicy</span><div class="row"><span>250 g</span><span class="price">£12</span></div></div>
+    <div class="tile t4"><svg viewBox="0 0 64 84"><path d="M10 14h44l4 66H6z" fill="#fff" opacity=".92"/><path d="M10 14l6-10h32l6 10" fill="#fff" opacity=".7"/><circle cx="26" cy="46" r="5" fill="#3b3486"/><circle cx="38" cy="46" r="5" fill="#3b3486"/></svg><b>Nightjar</b><span>Brazil · Chocolate</span><div class="row"><span>250 g</span><span class="price">£9</span></div></div>
+    <div class="tile t5"><svg viewBox="0 0 64 84"><path d="M10 14h44l4 66H6z" fill="#fff" opacity=".92"/><path d="M10 14l6-10h32l6 10" fill="#fff" opacity=".7"/><path d="M22 46h20" stroke="#8b5e3c" stroke-width="6" stroke-linecap="round"/></svg><b>Hearth</b><span>House blend</span><div class="row"><span>500 g</span><span class="price">£16</span></div></div>
+    <div class="tile t6"><svg viewBox="0 0 64 84"><path d="M10 14h44l4 66H6z" fill="#fff" opacity=".92"/><path d="M10 14l6-10h32l6 10" fill="#fff" opacity=".7"/><path d="M24 40q8 12 16 0" stroke="#2f6f8f" stroke-width="5" fill="none" stroke-linecap="round"/></svg><b>Tidewater</b><span>Decaf · Smooth</span><div class="row"><span>250 g</span><span class="price">£10</span></div></div>
+  </div>
+  <div class="note"><i>☕</i><p><b>Free delivery over £25</b>Roasted Tuesday, posted Wednesday.</p></div>
+</body>
+</html>
