@@ -119,12 +119,25 @@ async function refreshMediaSettings() {
   paintMediaSettings();
 }
 
+/**
+ * A device's name as a person would say it. Chromium appends the USB vendor
+ * and product codes — "FaceTime HD Camera (3A71:F4B5)" — which is what a
+ * device is matched by, and noise to read. Kept when two devices would
+ * otherwise be listed under the same name.
+ */
+function mediaDeviceLabel(kind, name) {
+  const plain = (n) => n.replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)$/i, '');
+  const short = plain(name);
+  const twins = mediaDevices[kind].filter((n) => plain(n) === short).length > 1;
+  return twins ? name : short;
+}
+
 function mediaMenuItems(kind) {
   const chosen = mediaInfo[kind];
   const items = [{ value: '', label: 'System Default' }];
-  for (const name of mediaDevices[kind]) items.push({ value: name, label: name });
+  for (const name of mediaDevices[kind]) items.push({ value: name, label: mediaDeviceLabel(kind, name) });
   // still remembered while it's unplugged — an iPhone comes and goes
-  if (chosen && !mediaDevices[kind].includes(chosen)) items.push({ value: chosen, label: `${chosen} (not connected)` });
+  if (chosen && !mediaDevices[kind].includes(chosen)) items.push({ value: chosen, label: `${mediaDeviceLabel(kind, chosen)} (not connected)` });
   return items;
 }
 
@@ -133,7 +146,7 @@ function paintMediaSettings() {
     const chosen = mediaInfo[kind];
     const here = !chosen || mediaDevices[kind].includes(chosen);
     $(kind === 'camera' ? 'cameraMenu' : 'micMenu').querySelector('.label').textContent =
-      !chosen ? 'System Default' : here ? chosen : `${chosen} (not connected)`;
+      !chosen ? 'System Default' : here ? mediaDeviceLabel(kind, chosen) : `${mediaDeviceLabel(kind, chosen)} (not connected)`;
   }
 
   const sites = mediaInfo.allowed.map(({ origin }) => {
@@ -159,7 +172,7 @@ async function pickMediaDevice(kind, name) {
   paintMediaSettings();
   await window.bridge.setMediaDevices({ camera: mediaInfo.camera, microphone: mediaInfo.microphone });
   toast(name
-    ? `“${name}” is used the next time a page asks for the ${kind}.`
+    ? `“${mediaDeviceLabel(kind, name)}” is used the next time a page asks for the ${kind}.`
     : `The system default ${kind} is used the next time a page asks.`);
 }
 

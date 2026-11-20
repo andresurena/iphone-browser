@@ -36,7 +36,8 @@ function showMenu(anchor, { sections, value, onPick }) {
   closeMenu();
 
   const el = document.createElement('div');
-  el.className = 'popover';
+  // larger rows for a menu opened from the Settings sheet (see shell.css)
+  el.className = 'popover' + (anchor.closest('.settings') ? ' roomy' : '');
   el.setAttribute('role', 'menu');
 
   for (const section of sections) {
@@ -75,13 +76,29 @@ function showMenu(anchor, { sections, value, onPick }) {
 
   document.body.appendChild(el);
 
-  // above the button, left-aligned to it, never past the window's edges
+  // Above the button, left-aligned to it, never past the window's edges. The
+  // bottom bar's menus always have the whole window above them; one opened from
+  // Settings may sit near the top, and there it opens downward instead — a menu
+  // squeezed into the little room above would scroll its first items away.
   const r = anchor.getBoundingClientRect();
+  el.style.minWidth = `${Math.max(r.width, 180)}px`;
   const left = Math.max(8, Math.min(r.left, window.innerWidth - el.offsetWidth - 8));
   el.style.left = `${left}px`;
-  el.style.bottom = `${window.innerHeight - r.top + 6}px`;
-  el.style.maxHeight = `${Math.max(120, r.top - 14)}px`;
-  el.style.minWidth = `${Math.max(r.width, 180)}px`;
+  const above = r.top - 14;
+  const below = window.innerHeight - r.bottom - 14;
+  // a toolbar menu goes up unless it can't; one in the Settings sheet drops
+  // down, like any dropdown in a form, unless THAT can't
+  const need = el.scrollHeight;
+  const down = el.classList.contains('roomy')
+    ? (need <= below || below >= above)
+    : !(need <= above || above >= below);
+  if (!down) {
+    el.style.bottom = `${window.innerHeight - r.top + 6}px`;
+    el.style.maxHeight = `${Math.max(120, above)}px`;
+  } else {
+    el.style.top = `${r.bottom + 6}px`;
+    el.style.maxHeight = `${Math.max(120, below)}px`;
+  }
 
   anchor.setAttribute('aria-expanded', 'true');
   anchor.classList.add('open');

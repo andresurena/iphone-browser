@@ -371,15 +371,15 @@ const railIcon = (name) => `<svg viewBox="0 0 24 24">${RAIL_ICONS[name]}</svg>`;
 
 // iPhone Duo folds Wi-Fi, signal and battery into one round glyph: Wi-Fi in the
 // middle of a battery ring, the ring broken at the bottom by the signal dots.
+// The Wi-Fi in the middle is Apple's own outline (the system symbol `wifi`); the
+// ring and the dots are plain geometry. index.html carries a copy for #sbDuo.
 const STATUS_GLYPH = `
   <svg class="duo-glyph" viewBox="0 0 32 32" aria-label="Wi-Fi, signal and battery">
     <path class="ring track" d="M6.81 25.19A13 13 0 1 1 25.19 25.19"/>
     <path class="ring level" pathLength="100" d="M6.81 25.19A13 13 0 1 1 25.19 25.19"/>
     <circle class="dot" cx="9.5" cy="27.26" r="1.35"/><circle class="dot" cx="13.74" cy="28.8" r="1.35"/>
     <circle class="dot" cx="18.26" cy="28.8" r="1.35"/><circle class="dot" cx="22.5" cy="27.26" r="1.35"/>
-    <path class="arc" d="M10.34 13.6A8 8 0 0 1 21.66 13.6"/>
-    <path class="arc" d="M12.82 16.1A4.5 4.5 0 0 1 19.18 16.1"/>
-    <circle cx="16" cy="19.2" r="1.4"/>
+    <path class="wifi" transform="translate(9.08 11) scale(0.06)" d="M15.9 71.2C18.2 73.5 21.7 73.5 23.9 71C48.2 45.4 79.8 31.9 115.3 31.9C151.1 31.9 182.9 45.4 207 71.1C209.2 73.3 212.6 73.2 214.8 70.9L228.7 57.1C230.7 55 230.7 52.2 229 50.2C205.2 20.8 160.9 0 115.3 0C69.8 0 25.5 20.8 1.7 50.2C0 52.2 0.1 55 2.1 57.1ZM57 111.7C59.4 114.1 62.8 113.9 65.2 111.3C77.2 98.3 96.2 89.4 115.3 89.5C134.7 89.4 153.7 98.6 166 111.7C168.2 114.1 171.3 113.9 173.8 111.6L189.3 96.7C191.3 94.7 191.5 92 189.8 89.9C174.2 71.4 146 58.1 115.3 58.1C84.7 58.1 56.5 71.4 41 89.9C39.2 92 39.4 94.6 41.4 96.7ZM115.4 166.4C117.9 166.4 120.1 165.3 124.1 161.4L148.2 138.2C150.1 136.3 150.5 133.4 148.7 131.3C141.7 122.3 129.1 115.3 115.4 115.3C101.3 115.3 88.5 122.6 81.4 132.2C80.2 134 80.8 136.4 82.6 138.2L106.7 161.4C110.7 165.2 112.9 166.4 115.4 166.4Z"/>
   </svg>`;
 
 /**
