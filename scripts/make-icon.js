@@ -108,4 +108,9 @@ app.whenReady().then(async () => {
   console.log('wrote', path.join(OUT, 'icon.icns'));
   win.destroy();
   app.quit();
+}).catch((err) => {
+  // without this a failed render left the hidden app running, and the build
+  // that called it waiting forever
+  console.error('[icon]', err);
+  app.exit(1);
 });

@@ -140,6 +140,8 @@ function safeCall(primary, fallback, dflt) {
   activateTab(tabs[0].id);
   wireUI();
   wireSettings();
+  wireMedia();
+  wireStatusIcons();
   wireBreakout();
   tickClock();
   setInterval(tickClock, 10_000);
@@ -227,6 +229,12 @@ function activateTab(id) {
   if (!tab) return;
   followSplitFocus(id);
   activeTabId = id;
+  // the spinner and the window's title are the active tab's, so they change
+  // hands with it — a tab left loading mustn't leave its spinner on this one
+  let loading = false;
+  try { loading = tab.el.isLoading(); } catch { /* guest not created yet */ }
+  $('spinner').hidden = !loading;
+  document.title = tab.title ? `${tab.title} — ${APP_NAME}` : APP_NAME;
 
   renderTabs();
   // an explicit tab switch always wins, even if the address bar happens to
@@ -244,6 +252,8 @@ function closeTab(id) {
 
   const [closed] = tabs.splice(idx, 1);
   closed.el.remove();
+  // the front tab's page is the one reopened on relaunch — and it just changed
+  if (idx === 0) set({ url: tabs[0].url || '' }, { relayout: false });
 
   if (activeTabId === id) {
     const next = tabs[idx] || tabs[idx - 1] || tabs[0];
@@ -257,6 +267,9 @@ function closeTab(id) {
 function renderTabs() {
   tabsEl.innerHTML = '';
   const onlyTab = tabs.length === 1;
+  // the strip marks which tab is on which device, so the pair has to be
+  // settled before it's drawn rather than at the next layout
+  if (compareActive()) syncComparePair();
   const otherId = otherTabId();
   const cmpId = compareOtherId();
 
@@ -273,7 +286,7 @@ function renderTabs() {
     label.textContent = t.title || (t.url ? hostnameOf(t.url) : 'New Tab');
     btn.appendChild(label);
 
-    if (S.compare && !device.foldable && t.id !== comparePageId()) {
+    if (compareActive() && t.id !== comparePageId()) {
       const cmp = document.createElement('span');
       cmp.className = 'tab-compare' + (t.id === cmpId ? ' active' : '');
       cmp.title = t.id === cmpId ? 'On the second device' : 'Show this tab on the second device';
@@ -464,9 +477,10 @@ function layout() {
   phone.classList.toggle('no-buttons', device.buttons === 'none');
   phone.classList.toggle('homeview', device.frame === 'homeview');
   phone.classList.toggle('no-front', device.front.type === 'none');
-  phone.classList.toggle('rail', g.rail);
-  phone.classList.toggle('split', g.split);
-  phone.classList.toggle('compare', g.compare);
+  // Boolean(): toggle(name, undefined) flips the class instead of clearing it
+  phone.classList.toggle('rail', Boolean(g.rail));
+  phone.classList.toggle('split', Boolean(g.split));
+  phone.classList.toggle('compare', Boolean(g.compare));
   phone.classList.toggle('hinge-left', g.hinge === 'left');
   phone.classList.toggle('hinge-top', g.hinge === 'top');
 
@@ -517,6 +531,8 @@ function layout() {
   renderCompare(g);
   renderPose(g);
   paintBarCollapse();
+  placeMediaAsks();
+  paintStatusIcons();
 
   // fit-to-window or a fixed percentage. A posed device is fitted to the box
   // it actually projects to, measured, and shifted so that box — not the flat
@@ -573,7 +589,7 @@ function layout() {
 function reportPageRects() {
   const covered = !$('settings').hidden || !$('breakout').hidden || Boolean(openPopover);
   const rects = covered ? [] : tabs
-    .filter((t) => t.el.classList.contains('shown'))
+    .filter((t) => t.el.classList.contains('shown') && !mediaAskOver(t))
     .map((t) => {
       let wcId;
       try { wcId = t.el.getWebContentsId(); } catch { return null; }   // guest not created yet
@@ -812,7 +828,7 @@ function bindMenus() {
   bindMenu($('displayMenu'), () => {
     const landscape = S.orientation === 'landscape';
     const item = (d) => ({ value: d.id, label: displayLabel(d, landscape) });
-    const plain = deviceEntry.displays.filter((d) => !d.pose);
+    const plain = deviceEntry.displays.filter((d) => !d.pose && !d.mirrorOf);
     const poses = deviceEntry.displays.filter((d) => d.pose);
     return {
       // Outer is the plainest, so it sits nearest the button; poses, being the
@@ -821,7 +837,7 @@ function bindMenus() {
         { label: 'Poses · Beta', items: [...poses].reverse().map(item) },
         { label: deviceEntry.name, items: [...plain].reverse().map(item) },
       ],
-      value: device.displayId,
+      value: device.mirrorOf || device.displayId,
       onPick: pickDisplay,
     };
   });
@@ -979,20 +995,24 @@ function wireUI() {
   phone.addEventListener('click', (e) => {
     const control = e.target.closest('button');
     if (!control || !phone.contains(control)) return;
-    const railTab = tabById(Number(control.closest('[data-tab]')?.dataset.tab));
-    const el = (railTab || activeTab())?.el;
+    const ownTab = drawnControlTab(control);
+    const el = ownTab?.el;
 
     // Duo's own Split View creates the tab already focused into that half;
     // Compare's empty device just opens an ordinary tab — syncComparePair()
     // then gives the newly active tab the device that was standing empty.
-    if (control.hasAttribute('data-new-tab-here')) return (S.compare ? requestNewTab : openTabInOtherHalf)();
-    if (control.hasAttribute('data-new-tab')) return requestNewTab();
+    if (control.hasAttribute('data-new-tab-here')) return (compareActive() ? requestNewTab : openTabInOtherHalf)();
+    if (control.hasAttribute('data-new-tab')) {
+      // "+" on Compare's second device opens the tab on THAT device
+      if (compareActive() && control.closest('.compare-overlay')) return newTabOnSecondDevice();
+      return requestNewTab();
+    }
     if (!el) return;
     if (control.hasAttribute('data-back')) nav.back(el);
     else if (control.hasAttribute('data-forward')) nav.forward(el);
     else if (control.hasAttribute('data-reload')) el.reload();
     else if (control.hasAttribute('data-search')) {
-      if (railTab && railTab.id !== activeTabId) activateTab(railTab.id);
+      if (ownTab.id !== activeTabId) activateTab(ownTab.id);
       urlInput.focus();
       urlInput.select();
     }
@@ -1035,7 +1055,11 @@ function wireUI() {
       case 'toggle-meta': set({ showMeta: !S.showMeta }); break;
       case 'screenshot': screenshot(payload || {}); break;
       case 'zoom': pickZoom(payload); break;
-      case 'device': if (payload !== deviceEntry.id) pickDevice(payload); break;
+      case 'device':
+        if (payload === deviceEntry.id) break;
+        if (isDeviceOn(payload)) pickDevice(payload);
+        else toast(`${deviceById(payload).name} is switched off in Settings › Devices.`);
+        break;
       case 'reapply-emulation': applyEmulation(); break;
       case 'new-tab': requestNewTab(); break;
       case 'close-tab':
@@ -1068,6 +1092,9 @@ function cycleScheme() {
   const next = order[(order.indexOf(S.colorScheme) + 1) % order.length];
   set({ colorScheme: next });
   paintSchemeButton();
+  // the pages repaint in the new scheme a moment later; their bars are tinted
+  // from them, so sample again once they have
+  setTimeout(() => { for (const t of tabs) sampleTheme(t.el); }, 350);
 }
 
 function paintSchemeButton() {
@@ -1082,7 +1109,7 @@ function attachWebviewListeners(el, tabId) {
     applyEmulationTo(el);
     // in Compare the second device is tinted by its own page, so a tab that
     // isn't the active one still needs sampling
-    if (tabId === activeTabId || S.compare || device.split) sampleTheme(el);
+    if (tabId === activeTabId || compareActive() || device.split) sampleTheme(el);
   });
 
   // Clicking into a page makes it the tab the toolbar drives — Duo's Split
@@ -1090,7 +1117,7 @@ function attachWebviewListeners(el, tabId) {
   // stay put (its pair is sticky; see syncComparePair in compare.js).
   el.addEventListener('focus', () => {
     if (tabId === activeTabId || !el.classList.contains('shown')) return;
-    if (device.split || S.compare) activateTab(tabId);
+    if (device.split || compareActive()) activateTab(tabId);
   });
 
   el.addEventListener('did-start-loading', () => {
@@ -1100,7 +1127,7 @@ function attachWebviewListeners(el, tabId) {
   el.addEventListener('did-stop-loading', () => {
     syncNav();
     if (tabId !== activeTabId) {
-      if (S.compare) { sampleTheme(el); paintCompareFrame(); }
+      if (compareActive()) { sampleTheme(el); paintCompareFrame(); }
       else if (device.split) sampleTheme(el);
       return;
     }
@@ -1135,11 +1162,17 @@ function attachWebviewListeners(el, tabId) {
     }
   });
 
-  const onNav = () => {
+  const onNav = (inPage) => {
     const tab = tabById(tabId);
     if (!tab) return;
-    if (tab.barCollapsed) { tab.barCollapsed = false; paintBarCollapse(); }
-    tab.scrollY = 0;
+    // A new document starts at the top with the whole bar showing — through
+    // setBarCollapsed, because on the Duo the bar's size is part of the layout.
+    // Not for a move within the page: a site that rewrites its URL as you
+    // scroll hasn't gone anywhere, and its bar should stay as it is.
+    if (!inPage) {
+      if (tab.barCollapsed) setBarCollapsed(tab, false);
+      tab.scrollY = 0;
+    }
     let url = '';
     try { url = el.getURL(); } catch { /* guest not ready */ }
     // about:blank is the parking page every tab starts on, not somewhere the
@@ -1152,8 +1185,8 @@ function attachWebviewListeners(el, tabId) {
     if (isPrimary(tabId)) set({ url: tab.url }, { relayout: false });
     renderTabs();
   };
-  el.addEventListener('did-navigate', onNav);
-  el.addEventListener('did-navigate-in-page', onNav);
+  el.addEventListener('did-navigate', () => onNav(false));
+  el.addEventListener('did-navigate-in-page', () => onNav(true));
 
   el.addEventListener('page-title-updated', (e) => {
     const tab = tabById(tabId);
@@ -1197,7 +1230,7 @@ function updateChromeForActiveTab({ forceUrlInput = false } = {}) {
  * painted by paintCompareFrame (see compare.js), so they're left alone here.
  */
 function paintDeviceHosts() {
-  const tab = S.compare ? tabById(comparePageId()) : activeTab();
+  const tab = compareActive() ? tabById(comparePageId()) : activeTab();
   const host = hostnameOf(tab?.url || '');
   const mine = (sel) => all(sel).filter((el) => !el.closest('.compare-overlay'));
   for (const el of mine('[data-host]')) el.textContent = host;
@@ -1215,7 +1248,7 @@ const BAR_COLLAPSE_AFTER = 44;   // near the top of a page, the bar always shows
 
 function noteScroll(tabId, y) {
   const tab = tabById(tabId);
-  if (!tab) return;
+  if (!tab || capturing) return;
   const last = tab.scrollY ?? 0;
   tab.scrollY = y;
   // resizing the page to follow the bar nudges its scroll position; reading
@@ -1251,7 +1284,16 @@ function setBarCollapsed(tab, collapsed) {
 function barTabId(el) {
   const own = Number(el.closest('[data-tab]')?.dataset.tab);
   if (own) return own;
-  return S.compare ? comparePageId() : activeTabId;
+  return compareActive() ? comparePageId() : activeTabId;
+}
+
+/**
+ * The tab a drawn control acts on: the pane it's drawn in if that names one
+ * (a Duo rail, Compare's second device), else the page the first device shows —
+ * which in Compare isn't always the active tab.
+ */
+function drawnControlTab(control) {
+  return tabById(barTabId(control)) || activeTab();
 }
 
 function paintBarCollapse() {
@@ -1264,7 +1306,7 @@ function paintBarCollapse() {
 function syncNav() {
   paintDuoHosts();
   // in Compare either device can be the one that just navigated
-  if (S.compare) { paintDeviceHosts(); paintCompareFrame(); }
+  if (compareActive()) { paintDeviceHosts(); paintCompareFrame(); }
   const el = activeWv();
   const b = Boolean(el && nav.canBack(el));
   const f = Boolean(el && nav.canForward(el));
@@ -1272,8 +1314,7 @@ function syncNav() {
   $('forward').disabled = !f;
 
   for (const control of all('#phone [data-back], #phone [data-forward]')) {
-    const railTab = tabById(Number(control.closest('[data-tab]')?.dataset.tab));
-    const target = (railTab || activeTab())?.el;
+    const target = drawnControlTab(control)?.el;
     const can = control.hasAttribute('data-back') ? nav.canBack : nav.canForward;
     control.disabled = !(target && can(target));
   }
@@ -1287,10 +1328,28 @@ async function sampleTheme(el) {
   let sampled = null;
   try {
     sampled = await el.executeJavaScript(`(() => {
-      const m = document.querySelector('meta[name="theme-color"]');
-      const cs = (node) => node ? getComputedStyle(node).backgroundColor : '';
+      // the first theme-color whose media query holds — a site may list one
+      // per colour scheme
+      const m = [...document.querySelectorAll('meta[name="theme-color"]')]
+        .find((el) => { try { return !el.media || matchMedia(el.media).matches; } catch { return true; } });
+      // Whatever notation the page wrote the colour in — oklch(), color-mix(),
+      // a name — a canvas paints it and hands back plain numbers.
+      const plain = (c) => {
+        if (!c) return '';
+        try {
+          if (!CSS.supports('color', c)) return '';
+          const x = document.createElement('canvas');
+          x.width = x.height = 1;
+          const g = x.getContext('2d', { willReadFrequently: true });
+          g.fillStyle = c;
+          g.fillRect(0, 0, 1, 1);
+          const [r, gr, b, a] = g.getImageData(0, 0, 1, 1).data;
+          return 'rgba(' + r + ',' + gr + ',' + b + ',' + (a / 255) + ')';
+        } catch { return c; }
+      };
+      const cs = (node) => node ? plain(getComputedStyle(node).backgroundColor) : '';
       return {
-        theme: m && m.content,
+        theme: plain(m && m.content),
         body: cs(document.body),
         html: cs(document.documentElement),
       };
@@ -1324,7 +1383,7 @@ function applyBarTheme(el, theme) {
 
 /** #phone carries the tint of whichever page the first device shows. */
 function paintBarThemes() {
-  const shown = S.compare ? tabById(comparePageId()) : activeTab();
+  const shown = compareActive() ? tabById(comparePageId()) : activeTab();
   applyBarTheme(phone, shown?.theme);
   paintCompareFrame();
   paintPaneThemes();
@@ -1410,49 +1469,72 @@ function canvasToBase64(canvas) {
   });
 }
 
-// Page.captureScreenshot returns a tiled, corrupted image at dpr=3 on this
-// Chromium build — confirmed directly by capturing the same page at dpr 1, 2
-// and 3: only 3 breaks. Every device this app emulates uses dpr:3, so every
-// screenshot temporarily downshifts to this safe value and the captured
-// pixels are scaled back up to the device's real resolution, restoring live
-// emulation (and the real dpr) once the capture is done.
-const SAFE_CAPTURE_DPR = 2;
+// A page's picture can be no bigger than the surface it paints into, and that
+// surface is the <webview> element's size on THIS Mac's display: 440 × 894
+// points is 880 × 1788 pixels on a Retina panel and only 440 × 894 on a 1×
+// external one. Ask for more — a 3× iPhone is 1320 × 2682 — and the capture
+// comes back the right size but filled with the same corner of the page,
+// tiled. (For a long time this read as "captures break at dpr 3"; it's any
+// device ratio above the display's own, which on a 1× display is all of them.)
+//
+// So for the length of a capture the element is laid out larger — by the
+// device's ratio over the display's — and scaled back down with a transform,
+// which changes what it paints into without changing how it looks. The page
+// itself never notices: its viewport is pinned by the emulation.
+/** The longest side Chromium will give a canvas. */
+const MAX_CANVAS_SIDE = 32767;
+let capturing = false;         // a capture is scrolling the page — not the reader
+let captureCutShort = false;   // the last full-page capture hit MAX_CANVAS_SIDE
 
 /**
- * Capture a tab as a PNG at the device's real resolution, working around the
- * dpr=3 capture bug above. For a full-page shot, scrolls in increments and
- * stitches the results — a <webview>'s guest paints into a surface tied to its
- * own on-screen DOM size, so asking CDP for a taller capture than that
- * (captureBeyondViewport, or a taller declared height with an explicit clip)
- * just tiles whatever's already painted; only ever asking for what's actually
- * on screen avoids that entirely. (Known limitation: position:fixed/sticky
- * elements appear once per tile, same as any scroll-and-stitch screenshot tool.)
+ * Capture a tab as a PNG at the device's real resolution. For a full-page
+ * shot, scrolls in increments and stitches the results: asking CDP for a
+ * capture taller than the surface (captureBeyondViewport, or a taller declared
+ * height with an explicit clip) tiles in just the same way, so only what's
+ * actually on screen is ever asked for. (Known limitation: position:fixed/
+ * sticky elements appear once per tile, as in any scroll-and-stitch tool.)
  *
  * Returns a base64 PNG (no data-URL prefix), or null on failure.
  */
 async function captureScreenshotPixels(el, { fullPage }) {
   const realDpr = device.dpr;
-  const captureDpr = Math.min(realDpr, SAFE_CAPTURE_DPR);
-  const scaleUp = realDpr / captureDpr;
   const pane = paneForTab(tabOf(el)?.id, geometry());
   const targetWidth = Math.round(pane.viewW * realDpr);
+  const targetHeight = Math.round(pane.viewH * realDpr);
+  captureCutShort = false;
 
-  if (captureDpr !== realDpr) {
-    await window.bridge.emulate(el.getWebContentsId(),
-      { ...currentEmulationPayload(el), dpr: captureDpr });
-    await new Promise((r) => setTimeout(r, 60));   // let the resize actually land
-  }
+  // With the Web Inspector open the emulation is off, and there's nothing
+  // pinning the viewport: resizing the element would resize the page. The
+  // capture is then the compositor's own, sized to fit below.
+  let inspecting = false;
+  try { inspecting = el.isDevToolsOpened(); } catch { /* guest gone */ }
+  const grow = inspecting ? 1 : realDpr / window.devicePixelRatio;
+  const placed = { width: el.style.width, height: el.style.height, transform: el.style.transform, transformOrigin: el.style.transformOrigin };
 
   try {
+    // scrolling the page for a full-page capture mustn't minimise its bar — on
+    // the Duo that relayouts and re-emulates the page halfway through the stitch
+    capturing = true;
+    if (grow > 1) {
+      Object.assign(el.style, {
+        width: `${parseFloat(placed.width) * grow}px`,
+        height: `${parseFloat(placed.height) * grow}px`,
+        transform: `scale(${1 / grow})`,
+        transformOrigin: '0 0',
+      });
+      await new Promise((r) => setTimeout(r, 250));   // let the larger surface arrive
+    }
+
     if (!fullPage) {
       const tile = await window.bridge.captureTile(el.getWebContentsId());
       if (!tile) return null;
-      if (scaleUp === 1) return tile;
       const img = await loadImage(`data:image/png;base64,${tile}`).catch(() => null);
       if (!img) return null;
+      // already the device’s own size — the usual case
+      if (img.width === targetWidth && img.height === targetHeight) return tile;
       const canvas = document.createElement('canvas');
       canvas.width = targetWidth;
-      canvas.height = Math.round(pane.viewH * realDpr);
+      canvas.height = targetHeight;
       canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
       return canvasToBase64(canvas);
     }
@@ -1465,16 +1547,24 @@ async function captureScreenshotPixels(el, { fullPage }) {
       return null;
     }
 
+    // The height is fixed here, at the start: a feed that loads more as it's
+    // scrolled would otherwise keep the loop going for as long as it has posts.
+    // And a canvas has a tallest it can be; past that it silently draws nothing.
+    const heightCss = Math.min(scrollHeightCss, Math.floor(MAX_CANVAS_SIDE / realDpr));
+    captureCutShort = heightCss < scrollHeightCss;
+
     const canvas = document.createElement('canvas');
     canvas.width = targetWidth;
-    canvas.height = Math.max(1, Math.round(scrollHeightCss * realDpr));
+    canvas.height = Math.max(1, Math.round(heightCss * realDpr));
     const ctx = canvas.getContext('2d');
 
     let lastY = -1;
-    for (let target = 0; ; target += pane.viewH) {
+    for (let target = 0; target < heightCss; target += pane.viewH) {
       let y;
       try {
-        await el.executeJavaScript(`window.scrollTo(0, ${target})`);
+        // 'instant': a page with scroll-behavior: smooth would still be on its
+        // way when the tile is taken
+        await el.executeJavaScript(`window.scrollTo({ top: ${target}, left: 0, behavior: 'instant' })`);
         await new Promise((r) => setTimeout(r, 80));   // let the scroll actually repaint
         y = await el.executeJavaScript('window.scrollY');
       } catch {
@@ -1487,13 +1577,15 @@ async function captureScreenshotPixels(el, { fullPage }) {
       if (!tile) return null;
       const img = await loadImage(`data:image/png;base64,${tile}`).catch(() => null);
       if (!img) return null;
-      ctx.drawImage(img, 0, Math.round(y * realDpr), img.width * scaleUp, img.height * scaleUp);
+      ctx.drawImage(img, 0, Math.round(y * realDpr), targetWidth, targetHeight);
     }
 
-    try { await el.executeJavaScript('window.scrollTo(0, 0)'); } catch { /* best effort */ }
+    try { await el.executeJavaScript("window.scrollTo({ top: 0, left: 0, behavior: 'instant' })"); } catch { /* best effort */ }
     return canvasToBase64(canvas);
   } finally {
-    if (captureDpr !== realDpr) await applyEmulationTo(el);   // restore the real dpr
+    if (grow > 1) Object.assign(el.style, placed);
+    // the page's last scroll report trails the scroll by a moment
+    setTimeout(() => { capturing = false; }, 300);
   }
 }
 
@@ -1517,7 +1609,8 @@ async function screenshot({ fullPage = false } = {}) {
     if (!res?.canceled) toast('Screenshot failed');   // a cancelled save panel isn't a failure
     return;
   }
-  toast(`Saved ${res.width} × ${res.height}${fullPage ? ' full page' : ''}`,
+  const note = !fullPage ? '' : captureCutShort ? ' — the top of the page; it’s taller than one image can be' : ' full page';
+  toast(`Saved ${res.width} × ${res.height}${note}`,
     'Show in Finder', () => window.bridge.reveal(res.path));
 }
 

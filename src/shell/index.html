@@ -94,21 +94,24 @@
             <div id="sbIos" class="statusbar ios">
               <div class="time" id="clockIos">9:41</div>
               <div class="indicators">
-                <svg class="si sig" viewBox="0 0 17 11" aria-label="Cellular">
-                  <rect x="0"     y="6.6" width="3" height="4.4" rx="1.1"/>
-                  <rect x="4.67"  y="4.4" width="3" height="6.6" rx="1.1"/>
-                  <rect x="9.33"  y="2.2" width="3" height="8.8" rx="1.1"/>
-                  <rect x="14"    y="0"   width="3" height="11"  rx="1.1"/>
+                <!-- The three iOS glyphs are Apple's own outlines — the system symbols
+                     cellularbars, wifi, battery.0percent and bolt.fill at semibold,
+                     read out of macOS — so they keep their exact shapes at any zoom.
+                     status.js dims the bars and sizes the battery's fill. -->
+                <svg class="si sig" viewBox="0 0 264.2 175.9" aria-label="Cellular">
+                  <path class="bar" d="M14 175.9L35.4 175.9C43.8 175.9 49.5 170.3 49.5 162L49.5 120.6C49.5 112.3 43.8 106.8 35.4 106.8L14 106.8C5.6 106.8 0 112.3 0 120.6L0 162C0 170.3 5.6 175.9 14 175.9Z"/>
+                  <path class="bar" d="M85.7 175.9L107 175.9C115.4 175.9 121.1 170.3 121.1 162L121.1 90.2C121.1 82 115.4 76.3 107 76.3L85.7 76.3C77.2 76.3 71.6 82 71.6 90.2L71.6 162C71.6 170.3 77.2 175.9 85.7 175.9Z"/>
+                  <path class="bar" d="M157.2 175.9L178.5 175.9C186.9 175.9 192.6 170.3 192.6 162L192.6 53.8C192.6 45.5 186.9 39.9 178.5 39.9L157.2 39.9C148.8 39.9 143.1 45.5 143.1 53.8L143.1 162C143.1 170.3 148.8 175.9 157.2 175.9Z"/>
+                  <path class="bar" d="M228.8 175.9L250.2 175.9C258.6 175.9 264.2 170.3 264.2 162L264.2 13.9C264.2 5.6 258.6 0 250.2 0L228.8 0C220.4 0 214.7 5.6 214.7 13.9L214.7 162C214.7 170.3 220.4 175.9 228.8 175.9Z"/>
                 </svg>
-                <svg class="si wifi" viewBox="0 0 16.2 12" aria-label="Wi-Fi">
-                  <path class="arc" d="M1.76 4.78a8.4 8.4 0 0 1 12.48 0"/>
-                  <path class="arc" d="M4.43 7.19a4.8 4.8 0 0 1 7.14 0"/>
-                  <circle cx="8.1" cy="10.2" r="1.35"/>
+                <svg class="si wifi" viewBox="0 0 230.7 166.4" aria-label="Wi-Fi">
+                  <path d="M15.9 71.2C18.2 73.5 21.7 73.5 23.9 71C48.2 45.4 79.8 31.9 115.3 31.9C151.1 31.9 182.9 45.4 207 71.1C209.2 73.3 212.6 73.2 214.8 70.9L228.7 57.1C230.7 55 230.7 52.2 229 50.2C205.2 20.8 160.9 0 115.3 0C69.8 0 25.5 20.8 1.7 50.2C0 52.2 0.1 55 2.1 57.1ZM57 111.7C59.4 114.1 62.8 113.9 65.2 111.3C77.2 98.3 96.2 89.4 115.3 89.5C134.7 89.4 153.7 98.6 166 111.7C168.2 114.1 171.3 113.9 173.8 111.6L189.3 96.7C191.3 94.7 191.5 92 189.8 89.9C174.2 71.4 146 58.1 115.3 58.1C84.7 58.1 56.5 71.4 41 89.9C39.2 92 39.4 94.6 41.4 96.7ZM115.4 166.4C117.9 166.4 120.1 165.3 124.1 161.4L148.2 138.2C150.1 136.3 150.5 133.4 148.7 131.3C141.7 122.3 129.1 115.3 115.4 115.3C101.3 115.3 88.5 122.6 81.4 132.2C80.2 134 80.8 136.4 82.6 138.2L106.7 161.4C110.7 165.2 112.9 166.4 115.4 166.4Z"/>
                 </svg>
-                <svg class="si batt" viewBox="0 0 27.4 13" aria-label="Battery">
-                  <rect class="shell" x="0.6" y="0.6" width="24" height="11.8" rx="4.2"/>
-                  <rect class="fill"  x="2"   y="2"   width="21.2" height="9" rx="2.8"/>
-                  <path class="cap" d="M26.1 4.9v3.2a2.1 2.1 0 0 0 0-3.2z"/>
+                <svg class="si batt" viewBox="0 0 296.9 140" aria-label="Battery">
+                  <path class="shell" fill-rule="evenodd" d="M54.7 140L207.6 140C226.2 140 240 137.7 250.1 127.7C260.2 117.5 262.3 103.9 262.3 85.3L262.3 54.7C262.3 36.1 260.2 22.4 250.1 12.4C240 2.2 226.2 0 207.6 0L54.6 0C36.2 0 22.3 2.3 12.2 12.4C2.1 22.5 0 36.1 0 54.6L0 85.3C0 103.9 2.1 117.6 12.2 127.7C22.4 137.7 36.1 140 54.7 140ZM52 118.3C41.9 118.3 33.2 116.8 28.1 111.7C23 106.7 21.7 98.2 21.7 88L21.7 52.2C21.7 41.9 23.1 33.4 28.1 28.2C33.1 23.1 41.9 21.8 52.2 21.8L210.3 21.8C220.5 21.8 229.1 23.2 234.2 28.2C239.3 33.4 240.6 41.8 240.6 52.1L240.6 88C240.6 98.2 239.2 106.7 234.2 111.7C229.2 116.8 220.5 118.3 210.3 118.3Z"/>
+                  <rect class="fill" x="34.7" y="34.8" width="192.9" height="70.4" rx="14.5"/>
+                  <path class="cap" d="M277.3 97.4C285.6 96.9 296.9 86.2 296.9 70C296.9 53.8 285.6 43.1 277.3 42.6Z"/>
+                  <path class="bolt" d="M106.7 74.2C106.7 75.6 107.8 76.7 109.3 76.7L128.7 76.7L118.5 103.7C117.1 107.5 121 109.4 123.5 106.4L154.7 68.1C155.3 67.3 155.6 66.6 155.6 65.8C155.6 64.4 154.5 63.3 153 63.3L133.6 63.3L143.8 36.2C145.2 32.5 141.3 30.5 138.8 33.6L107.6 71.9C107 72.7 106.7 73.4 106.7 74.2Z"/>
                 </svg>
               </div>
             </div>
@@ -121,12 +124,14 @@
                   <path d="M10 15.2 0.9 5.4a12.6 12.6 0 0 1 18.2 0z"/>
                 </svg>
                 <svg class="si sig-md" viewBox="0 0 16 16" aria-label="Cellular">
-                  <path d="M1 15h14V1z"/>
+                  <path class="track" d="M1 15h14V1z"/>
+                  <path class="level" d="M1 15h14V1z"/>
                 </svg>
                 <svg class="si batt-md" viewBox="0 0 25.5 12" aria-label="Battery">
                   <rect class="shell" x="0.5" y="0.5" width="21" height="11" rx="3.2"/>
                   <rect class="fill"  x="1.9" y="1.9" width="18.2" height="8.2" rx="2"/>
                   <rect class="cap"   x="22.6" y="3.9" width="2" height="4.2" rx="1"/>
+                  <path class="bolt" d="M12 2 8.6 6.5h2.2l-.8 3.5 3.5-4.5h-2.2z"/>
                 </svg>
               </div>
             </div>
@@ -136,9 +141,10 @@
             <div id="sbDuo" class="statusbar duo">
               <div class="duo-status-pill"><span class="time" data-clock>9:41</span>
                 <svg class="duo-glyph" viewBox="0 0 32 32" aria-label="Wi-Fi, signal and battery">
-                  <path class="ring" d="M6.81 25.19A13 13 0 1 1 25.19 25.19"/>
-                  <circle cx="9.5" cy="27.26" r="1.35"/><circle cx="13.74" cy="28.8" r="1.35"/>
-                  <circle cx="18.26" cy="28.8" r="1.35"/><circle cx="22.5" cy="27.26" r="1.35"/>
+                  <path class="ring track" d="M6.81 25.19A13 13 0 1 1 25.19 25.19"/>
+                  <path class="ring level" pathLength="100" d="M6.81 25.19A13 13 0 1 1 25.19 25.19"/>
+                  <circle class="dot" cx="9.5" cy="27.26" r="1.35"/><circle class="dot" cx="13.74" cy="28.8" r="1.35"/>
+                  <circle class="dot" cx="18.26" cy="28.8" r="1.35"/><circle class="dot" cx="22.5" cy="27.26" r="1.35"/>
                   <path class="arc" d="M10.34 13.6A8 8 0 0 1 21.66 13.6"/>
                   <path class="arc" d="M12.82 16.1A4.5 4.5 0 0 1 19.18 16.1"/>
                   <circle cx="16" cy="19.2" r="1.4"/>
@@ -295,6 +301,10 @@
             <!-- home indicator / gesture bar -->
             <div id="homebar" class="homebar"></div>
 
+            <!-- a page asking for the camera or microphone: the alert a phone
+                 would show, over that page (see media.js) -->
+            <div id="prompts" class="prompt-layer"></div>
+
           </div>
         </div>
           </div><!-- /liveHalf -->
@@ -415,6 +425,7 @@
         <button role="tab" data-pane="general" aria-selected="true">General</button>
         <button role="tab" data-pane="devices" aria-selected="false">Devices</button>
         <button role="tab" data-pane="browsers" aria-selected="false">Browsers</button>
+        <button role="tab" data-pane="camera" aria-selected="false">Camera</button>
         <button role="tab" data-pane="about" aria-selected="false">About</button>
       </nav>
 
@@ -437,6 +448,13 @@
           <span class="row-text"><span class="row-title">Always start with</span></span>
           <button id="startDeviceMenu" class="menu-btn"><span class="label"></span><svg class="chev" viewBox="0 0 10 10"><path d="M2.5 6.2 5 3.7l2.5 2.5"/></svg></button>
         </div>
+        <label class="settings-row">
+          <span class="row-text">
+            <span class="row-title">Live status icons</span>
+            <span class="row-hint">The phone’s battery follows this Mac’s, and its signal dips now and then. Off, both stay full.</span>
+          </span>
+          <input id="setLiveStatus" type="checkbox" class="switch" />
+        </label>
         <label class="settings-row">
           <span class="row-text">
             <span class="row-title">Advanced Mode</span>
@@ -463,6 +481,29 @@
         <div id="browserToggles"></div>
       </section>
 
+      <section class="settings-pane" data-pane="camera" role="tabpanel" hidden>
+        <p class="settings-note">Which of this Mac’s cameras and microphones a page is given when it asks for one. An iPhone nearby appears here as a camera too.</p>
+        <div class="settings-row">
+          <span class="row-text"><span class="row-title">Camera</span></span>
+          <button id="cameraMenu" class="menu-btn wide"><span class="label"></span><svg class="chev" viewBox="0 0 10 10"><path d="M2.5 6.2 5 3.7l2.5 2.5"/></svg></button>
+        </div>
+        <div class="settings-row">
+          <span class="row-text"><span class="row-title">Microphone</span></span>
+          <button id="micMenu" class="menu-btn wide"><span class="label"></span><svg class="chev" viewBox="0 0 10 10"><path d="M2.5 6.2 5 3.7l2.5 2.5"/></svg></button>
+        </div>
+        <div class="settings-row">
+          <span class="row-text">
+            <span class="row-title">Websites</span>
+            <span id="mediaSites" class="row-hint"></span>
+          </span>
+          <button id="mediaReset" class="settings-clear-btn">Reset</button>
+        </div>
+        <div id="mediaMacRow" class="settings-row" hidden>
+          <span class="row-text"><span id="mediaMacText" class="row-hint"></span></span>
+          <button id="mediaMacBtn" class="settings-clear-btn plain">Open Settings</button>
+        </div>
+      </section>
+
       <section class="settings-pane about" data-pane="about" role="tabpanel" hidden>
         <h3 data-app-name>iPhone Browser</h3>
         <p class="about-version">Version <span id="aboutVersion"></span></p>
@@ -477,6 +518,8 @@
   <script src="duo.js"></script>
   <script src="compare.js"></script>
   <script src="settings.js"></script>
+  <script src="media.js"></script>
+  <script src="status.js"></script>
   <script src="breakout.js"></script>
   <script src="shell.js"></script>
 </body>

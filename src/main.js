@@ -2,7 +2,7 @@
 
 const {
   app, BrowserWindow, ipcMain, webContents, dialog, shell, nativeTheme, screen,
-  nativeImage, session,
+  nativeImage, session, systemPreferences,
 } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -42,7 +42,13 @@ function saveState(patch) {
   const next = { ...loadState(), ...patch };
   try {
     fs.mkdirSync(path.dirname(statePath()), { recursive: true });
-    fs.writeFileSync(statePath(), JSON.stringify(next, null, 2));
+    // Written beside the real file and renamed over it. A plain write that's
+    // cut short — the app killed, the Mac losing power — leaves half a file,
+    // and loadState() answers a file it can't read with the defaults: every
+    // setting gone at the next launch. A rename either happens or doesn't.
+    const tmp = `${statePath()}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(next, null, 2));
+    fs.renameSync(tmp, statePath());
   } catch (err) {
     console.warn('[state] could not persist:', err.message);
   }
@@ -72,6 +78,7 @@ function detachDebugger(wc) {
   if (!attached.has(wc.id)) return;
   try { wc.debugger.detach(); } catch { /* already gone */ }
   attached.delete(wc.id);
+  mediaShims.delete(wc.id);   // scripts registered over a session go with it
 }
 
 const send = (wc, method, params) =>
@@ -121,7 +128,7 @@ const touchForMouse = new Map();   // webContents id → whether it's currently 
 
 ipcMain.on('pages:rects', (_e, rects) => {
   pageRects.clear();
-  for (const r of rects || []) pageRects.set(r.wcId, r);
+  for (const r of Array.isArray(rects) ? rects : []) if (r && Number.isInteger(r.wcId)) pageRects.set(r.wcId, r);
   syncTouchToPointer();
 });
 
@@ -189,6 +196,7 @@ async function applyEmulation(wcId, opts) {
         ? []
         : [{ name: 'prefers-color-scheme', value: colorScheme }],
     });
+    await syncMediaShim(wc);
   } else {
     // No CDP (DevTools owns the target) — fall back to Electron's own
     // emulation, which covers the viewport but not window.screen / DPR.
@@ -332,7 +340,18 @@ ipcMain.handle('state:get', () => ({
   version: app.getVersion(),
 }));
 
-ipcMain.handle('state:set', (_e, patch) => saveState(patch));
+// Only the settings the shell actually owns. The file names kept in state
+// (laptopControls) and the camera choice are written by the main process alone
+// — they go through their own handlers, which check them — so a patch can't
+// point one of them somewhere else on disk.
+const SHELL_STATE_KEYS = new Set(Object.keys(DEFAULTS).filter((k) => k !== 'cameraLabel' && k !== 'micLabel'));
+ipcMain.handle('state:set', (_e, patch) => {
+  const clean = {};
+  for (const [key, value] of Object.entries(patch && typeof patch === 'object' ? patch : {})) {
+    if (SHELL_STATE_KEYS.has(key)) clean[key] = value;
+  }
+  return saveState(clean);
+});
 
 ipcMain.handle('emulate', (_e, wcId, opts) => applyEmulation(wcId, opts));
 
@@ -351,19 +370,19 @@ ipcMain.handle('devtools:toggle', (_e, wcId) => {
   });
 });
 
-// Page.captureScreenshot returns a tiled, corrupted image at dpr=3 on this
-// Chromium build (confirmed directly: dpr 1 and 2 both capture cleanly, only
-// 3 breaks) — and separately, a <webview>'s guest paints into a surface tied
-// to its own on-screen DOM size, so asking for a taller capture than that
-// (captureBeyondViewport, or a taller declared height with an explicit clip)
-// just tiles what's already painted rather than rendering more. The renderer
-// works around both: it captures at a safe dpr, scales the result up to the
-// device's real resolution, and — for full-page shots — scrolls in
-// increments and stitches the per-scroll-position tiles itself. This handler
-// is the primitive that gets called once per tile.
+// One capture of what a page currently shows, at its emulated pixel ratio. The
+// renderer sizes the page's surface to match before calling (see "A page's
+// picture can be no bigger than the surface it paints into" in shell.js) and,
+// for full-page shots, scrolls and stitches these tiles itself.
 ipcMain.handle('capture-tile', async (_e, wcId) => {
   const wc = webContents.fromId(wcId);
-  if (!wc || wc.isDestroyed() || !attached.has(wc.id)) return null;
+  if (!wc || wc.isDestroyed()) return null;
+  // With the Web Inspector open the debugger belongs to it, not to us. The
+  // compositor's own picture of the page still works — at the Mac's scale
+  // rather than the device's, which the renderer sizes to fit.
+  if (!attached.has(wc.id)) {
+    try { return (await wc.capturePage()).toPNG().toString('base64'); } catch { return null; }
+  }
   try {
     const { data } = await wc.debugger.sendCommand('Page.captureScreenshot', { format: 'png' });
     return data; // base64
@@ -373,17 +392,25 @@ ipcMain.handle('capture-tile', async (_e, wcId) => {
   }
 });
 
-ipcMain.handle('screenshot', async (_e, wcId, meta = {}) => {
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+/** A device or host name as part of a file name: nothing that could leave the folder. */
+const fileNamePart = (text, fallback) =>
+  String(text || '').replace(/[\\/:\u0000-\u001f]/g, ' ').replace(/^[.\s]+/, '').trim().slice(0, 80) || fallback;
+
+ipcMain.handle('screenshot', async (_e, wcId, meta) => {
+  if (!meta || typeof meta !== 'object') meta = {};
   const wc = webContents.fromId(wcId);
   if (!wc || wc.isDestroyed()) return { ok: false };
 
   // The renderer always does its own capture (see capture-tile above) and
-  // hands over the finished PNG here — this direct-CDP path only remains as
-  // a fallback for callers that don't. capturePage() renders at the Mac's
-  // own scale factor (usually 2x); CDP honours the emulated DPR instead.
+  // hands over the finished PNG here — this direct path only remains as a
+  // fallback for callers that don't, and is only right at the display's own
+  // scale factor.
   let buffer = null;
-  if (meta.stitchedPngBase64) {
+  if (typeof meta.stitchedPngBase64 === 'string') {
     buffer = Buffer.from(meta.stitchedPngBase64, 'base64');
+    // what gets written to disk is a PNG or nothing
+    if (!buffer.subarray(0, 8).equals(PNG_MAGIC)) return { ok: false };
   } else if (attached.has(wc.id)) {
     try {
       const { data } = await wc.debugger.sendCommand('Page.captureScreenshot', { format: 'png' });
@@ -403,7 +430,7 @@ ipcMain.handle('screenshot', async (_e, wcId, meta = {}) => {
     try { return new URL(meta.url || '').hostname || 'page'; } catch { return 'page'; }
   })();
   const suffix = meta.fullPage ? ' full page' : '';
-  const file = `${meta.device || 'iPhone'} — ${host} — ${stamp}${suffix}.png`;
+  const file = `${fileNamePart(meta.device, 'iPhone')} — ${fileNamePart(host, 'page')} — ${stamp}${suffix}.png`;
 
   let target;
   if (process.mas) {
@@ -457,7 +484,9 @@ ipcMain.handle('capture-page', async (_e, wcId, maxWidth) => {
    even under the App Sandbox. */
 const controlsPath = () => {
   const name = loadState().laptopControls;
-  return name ? path.join(app.getPath('userData'), name) : null;
+  // only ever the copy this app made — never a path read out of the state file
+  if (typeof name !== 'string' || !/^laptop-controls\.(png|jpe?g|webp)$/.test(name)) return null;
+  return path.join(app.getPath('userData'), name);
 };
 const MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' };
 function imageDataUrl(file) {
@@ -541,6 +570,7 @@ ipcMain.handle('browsing:clear', async () => {
     const ses = session.fromPartition('persist:ios');
     await ses.clearStorageData();
     await ses.clearCache();
+    forgetMediaGrants();
     return { ok: true };
   } catch (err) {
     console.warn('[browsing:clear]', err.message);
@@ -569,7 +599,6 @@ ipcMain.handle('window:close', () => {
      clipboard-sanitized-write  "Copy" buttons — write-only, so a page can put
                                 text on the clipboard but never read it
    Refused, with the reason it's on the list:
-     media                      camera and microphone (video or audio)
      geolocation                the Mac's position
      notifications              system banners from a preview tool
      midi, midiSysex            instruments plugged into the Mac
@@ -579,7 +608,9 @@ ipcMain.handle('window:close', () => {
      openExternal               a page launching another app via a URL scheme
      usb, serial, hid           devices on the Mac (chooser handler below too)
      storage-access, speaker-selection, window-management, fileSystem, and
-     anything Chromium adds later — not on the allow list, so refused. */
+     anything Chromium adds later — not on the allow list, so refused.
+   Asked about, site by site:
+     media                      camera and microphone — see "camera & mic" below */
 const ALLOWED_PERMISSIONS = new Set([
   'fullscreen', 'pointerLock', 'keyboardLock', 'clipboard-sanitized-write',
 ]);
@@ -587,18 +618,285 @@ const ALLOWED_PERMISSIONS = new Set([
 function lockDownPermissions(ses) {
   // Asynchronous requests: getUserMedia, Notification.requestPermission,
   // navigator.geolocation.getCurrentPosition, …
-  ses.setPermissionRequestHandler((_wc, permission, callback) => {
-    callback(ALLOWED_PERMISSIONS.has(permission));
+  ses.setPermissionRequestHandler((wc, permission, callback, details) => {
+    if (ALLOWED_PERMISSIONS.has(permission)) { callback(true); return; }
+    if (permission === 'media' && wc && !wc.isDestroyed() && wc.getType() === 'webview') {
+      requestMedia(wc, details || {}).then(callback, () => callback(false));
+      return;
+    }
+    callback(false);
   });
   // Synchronous checks: navigator.permissions.query, Notification.permission,
   // and the gate on device labels in enumerateDevices. Must agree with the
   // request handler, or a page is told "granted" and then refused.
-  ses.setPermissionCheckHandler((_wc, permission) =>
-    ALLOWED_PERMISSIONS.has(permission));
+  ses.setPermissionCheckHandler((wc, permission, requestingOrigin, details) => {
+    if (ALLOWED_PERMISSIONS.has(permission)) return true;
+    if (permission !== 'media') return false;
+    // The shell lists cameras and microphones by name in Settings. A check is
+    // all it's given: it can read the names, and is still refused the devices.
+    if (wc && win && !win.isDestroyed() && wc === win.webContents) return true;
+    return mediaAllowed(originOf((details && details.securityOrigin) || requestingOrigin),
+      details && details.mediaType);
+  });
   // WebUSB / Web Serial / WebHID pick a device through a chooser the app would
   // have to draw. It draws none, so there is never a device to grant.
   ses.setDevicePermissionHandler(() => false);
 }
+
+/* ------------------------------------------------------------ camera & mic
+   A page gets the camera or the microphone the way it does on a phone: it
+   asks, and an alert on the phone's screen asks you. Three things have to
+   agree before a page is given either:
+
+   1. You, for that site. The shell draws the alert (media.js) and answers.
+      A yes is kept per origin until the app quits or browsing data is
+      cleared; a no lasts until that page navigates, so a page can't nag.
+   2. macOS, for this app. The first time, that's the system's own prompt;
+      after that it's System Settings › Privacy & Security.
+   3. Chromium's own rules: a secure page, and a frame the page's
+      Permissions-Policy lets have it.
+
+   Which camera and microphone a page gets is chosen in Settings, not by the
+   page: a site written for a phone asks for "the front camera" or "the back
+   one", and a Mac has neither. See mediaShimSource(). */
+
+const mediaGrants = new Map();    // origin → Set of 'camera' | 'microphone'
+const mediaRefused = new Set();   // `${webContents id}|${origin}`, until that page navigates
+const mediaAsks = new Map();      // ask id → { wcId, key, settle }
+const mediaAsking = new Map();    // `${webContents id}|${origin}|${kinds}` → the promise already waiting
+let nextMediaAsk = 1;
+
+// Chromium's test devices: a moving pattern for a camera and a beep for a
+// microphone. They never touch hardware, so macOS has nothing to say about them.
+const FAKE_MEDIA = app.commandLine.hasSwitch('use-fake-device-for-media-stream');
+
+function originOf(url) {
+  try {
+    const { origin } = new URL(url);
+    return origin === 'null' ? '' : origin;
+  } catch {
+    return '';
+  }
+}
+
+function mediaAllowed(origin, mediaType) {
+  const have = mediaGrants.get(origin);
+  if (!have) return false;
+  if (mediaType === 'video') return have.has('camera');
+  if (mediaType === 'audio') return have.has('microphone');
+  return have.size > 0;
+}
+
+const toShell = (channel, payload) => {
+  if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
+};
+
+async function macAllows(kind) {
+  if (process.platform !== 'darwin' || FAKE_MEDIA) return true;
+  const status = systemPreferences.getMediaAccessStatus(kind);
+  if (status === 'granted') return true;
+  if (status !== 'not-determined') return false;   // denied, or restricted by a profile
+  try { return await systemPreferences.askForMediaAccess(kind); } catch { return false; }
+}
+
+/** Put the alert on the phone's screen and wait for the answer. */
+function askShell(wc, origin, kinds) {
+  if (!win || win.isDestroyed()) return Promise.resolve(false);
+  const key = `${wc.id}|${origin}|${kinds.join('+')}`;
+  if (mediaAsking.has(key)) return mediaAsking.get(key);
+  const id = nextMediaAsk++;
+  const asking = new Promise((resolve) => {
+    mediaAsks.set(id, {
+      wcId: wc.id,
+      settle: (allow) => {
+        if (!mediaAsks.delete(id)) return;
+        mediaAsking.delete(key);
+        resolve(Boolean(allow));
+      },
+    });
+  });
+  mediaAsking.set(key, asking);
+  let host = origin;
+  try { host = new URL(origin).host; } catch { /* keep the origin */ }
+  toShell('media:ask', { id, wcId: wc.id, host, kinds });
+  return asking;
+}
+
+/** A page that has gone can't be answered: drop its alerts and its refusals. */
+function dropMediaAsks(wcId) {
+  for (const [id, ask] of mediaAsks) {
+    if (ask.wcId !== wcId) continue;
+    ask.settle(false);
+    toShell('media:cancel', id);
+  }
+  for (const key of mediaRefused) if (key.startsWith(`${wcId}|`)) mediaRefused.delete(key);
+}
+
+async function requestMedia(wc, details) {
+  const kinds = [];
+  for (const type of details.mediaTypes || []) {
+    const kind = type === 'video' ? 'camera' : type === 'audio' ? 'microphone' : null;
+    if (kind && !kinds.includes(kind)) kinds.push(kind);
+  }
+  const origin = originOf(details.securityOrigin || details.requestingUrl || wc.getURL());
+  if (!kinds.length || !origin) return false;
+  const wcId = wc.id;
+
+  const have = mediaGrants.get(origin) || new Set();
+  const missing = kinds.filter((k) => !have.has(k));
+  if (missing.length) {
+    const refusal = `${wcId}|${origin}`;
+    if (mediaRefused.has(refusal)) return false;
+    if (!(await askShell(wc, origin, missing))) {
+      if (!wc.isDestroyed()) mediaRefused.add(refusal);
+      return false;
+    }
+  }
+  for (const kind of kinds) {
+    if (await macAllows(kind)) continue;
+    toShell('media:blocked', kind);
+    return false;
+  }
+  if (wc.isDestroyed()) return false;
+  mediaGrants.set(origin, new Set([...(mediaGrants.get(origin) || []), ...kinds]));
+  return true;
+}
+
+function forgetMediaGrants() {
+  mediaGrants.clear();
+  mediaRefused.clear();
+}
+
+/**
+ * Runs in every page before its own scripts, and steers getUserMedia to the
+ * camera and microphone chosen in Settings.
+ *
+ * A page can name a device itself, and then it's left alone. Otherwise a site
+ * built for a phone says `facingMode: 'user'` or `{ exact: 'environment' }` —
+ * and the second of those fails outright on a Mac, whose cameras face neither
+ * way. So facingMode is dropped, and the chosen device put in its place.
+ *
+ * The chosen device is known here only by its name, because device ids are
+ * different for every site. And a site can't see names until it has been
+ * allowed once — so the first request may open the default camera, find it
+ * isn't the one chosen, and swap. The name stays inside this closure: a page
+ * that hasn't been allowed can't read which camera the Mac has.
+ *
+ * Changing the choice installs a newer copy on top (the page's document can't
+ * be reached any other way). The newest one decides and marks the request, so
+ * the copies beneath it pass it straight through.
+ */
+function mediaShimSource(want) {
+  return `(() => {
+  const proto = window.MediaDevices && MediaDevices.prototype;
+  if (!proto || !proto.getUserMedia) return;
+  const WANT = ${JSON.stringify({ video: want.camera || '', audio: want.microphone || '' })};
+  const DECIDED = Symbol.for('ib.media.decided');
+  const realGet = proto.getUserMedia;
+  const realList = proto.enumerateDevices;
+  const named = (c) => {
+    if (!c || typeof c !== 'object' || c.deviceId == null) return false;
+    const d = c.deviceId;
+    const v = (typeof d === 'object' && !Array.isArray(d)) ? (d.exact != null ? d.exact : d.ideal) : d;
+    return Array.isArray(v) ? v.length > 0 : Boolean(v);
+  };
+  const find = async (devices, kind) => {
+    if (!WANT[kind]) return null;
+    try {
+      const list = await realList.call(devices);
+      const hit = list.find((d) => d.kind === kind + 'input' && d.label === WANT[kind]);
+      return hit ? hit.deviceId : null;
+    } catch (e) { return null; }
+  };
+  const aim = (c, id) => {
+    const out = (c && typeof c === 'object') ? Object.assign({}, c) : {};
+    delete out.facingMode;
+    if (id) out.deviceId = { exact: id };
+    return out;
+  };
+  proto.getUserMedia = async function getUserMedia(constraints) {
+    if (!constraints || typeof constraints !== 'object' || constraints[DECIDED]) {
+      return realGet.call(this, constraints);
+    }
+    const asked = Object.assign({}, constraints);
+    asked[DECIDED] = true;
+    const ours = {};
+    for (const kind of ['video', 'audio']) {
+      if (!asked[kind] || named(asked[kind])) continue;
+      ours[kind] = true;
+      const id = await find(this, kind);
+      if (id || (kind === 'video' && typeof asked.video === 'object')) asked[kind] = aim(asked[kind], id);
+    }
+    let stream = await realGet.call(this, asked);
+    let again = null;
+    for (const kind of ['video', 'audio']) {
+      if (!ours[kind] || !WANT[kind]) continue;
+      const track = (kind === 'video' ? stream.getVideoTracks() : stream.getAudioTracks())[0];
+      if (!track || track.label === WANT[kind]) continue;
+      const id = await find(this, kind);
+      if (!id) continue;
+      again = again || Object.assign({}, asked);
+      again[kind] = aim(asked[kind], id);
+    }
+    if (again) {
+      for (const t of stream.getTracks()) t.stop();
+      stream = await realGet.call(this, again);
+    }
+    return stream;
+  };
+})();`;
+}
+
+const mediaShims = new Map();   // webContents id → { source, identifier } as last installed
+
+async function syncMediaShim(wc) {
+  if (!wc || wc.isDestroyed() || !attached.has(wc.id)) return;
+  const state = loadState();
+  const source = mediaShimSource({ camera: state.cameraLabel, microphone: state.micLabel });
+  const had = mediaShims.get(wc.id);
+  if (had && had.source === source) return;
+  mediaShims.set(wc.id, { source, identifier: null });
+  if (had && had.identifier) {
+    await send(wc, 'Page.removeScriptToEvaluateOnNewDocument', { identifier: had.identifier });
+  }
+  // scripts registered for new documents only run once the Page domain is on;
+  // without this they're accepted and then silently never evaluated
+  await send(wc, 'Page.enable');
+  const added = await send(wc, 'Page.addScriptToEvaluateOnNewDocument', { source });
+  const now = mediaShims.get(wc.id);
+  if (now && now.source === source) now.identifier = (added && added.identifier) || null;
+  // and the document that's already open
+  await send(wc, 'Runtime.evaluate', { expression: source });
+}
+
+ipcMain.handle('media:answer', (e, id, allow) => {
+  if (!win || win.isDestroyed() || e.sender !== win.webContents) return;
+  const ask = mediaAsks.get(id);
+  if (ask) ask.settle(allow === true);
+});
+
+ipcMain.handle('media:get', () => {
+  const state = loadState();
+  const status = (kind) => (process.platform === 'darwin' && !FAKE_MEDIA
+    ? systemPreferences.getMediaAccessStatus(kind) : 'granted');
+  return {
+    camera: state.cameraLabel || '',
+    microphone: state.micLabel || '',
+    allowed: [...mediaGrants].map(([origin, kinds]) => ({ origin, kinds: [...kinds] })),
+    mac: { camera: status('camera'), microphone: status('microphone') },
+  };
+});
+
+ipcMain.handle('media:devices', async (_e, choice) => {
+  const label = (v) => (typeof v === 'string' ? v.slice(0, 300) : '');
+  saveState({ cameraLabel: label(choice && choice.camera), micLabel: label(choice && choice.microphone) });
+  for (const wcId of attached) await syncMediaShim(webContents.fromId(wcId));
+});
+
+ipcMain.handle('media:reset', () => forgetMediaGrants());
+
+ipcMain.handle('media:privacy', (_e, kind) => shell.openExternal(
+  `x-apple.systempreferences:com.apple.preference.security?Privacy_${kind === 'microphone' ? 'Microphone' : 'Camera'}`));
 
 /* ------------------------------------------------------------ web contents */
 
@@ -632,25 +930,36 @@ app.on('web-contents-created', (_e, contents) => {
 
   // target=_blank / window.open should stay inside the phone, like on iOS.
   contents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:/.test(url)) contents.loadURL(url);
+    // rejects when the link is a download or the host can't be reached; the
+    // page's own did-fail-load already tells the shell
+    if (/^https?:/.test(url)) contents.loadURL(url).catch(() => {});
     return { action: 'deny' };
   });
 
+  const wcId = contents.id;   // not readable once it's destroyed
+  contents.on('did-navigate', () => dropMediaAsks(wcId));
   contents.on('destroyed', () => {
-    attached.delete(contents.id);
-    touchForMouse.delete(contents.id);
-    pageRects.delete(contents.id);
+    attached.delete(wcId);
+    touchForMouse.delete(wcId);
+    pageRects.delete(wcId);
+    mediaShims.delete(wcId);
+    dropMediaAsks(wcId);
   });
 });
 
 // Local dev servers with self-signed certs are the whole point of this app.
 app.on('certificate-error', (event, _wc, url, _error, _cert, callback) => {
   let host = '';
-  try { host = new URL(url).hostname; } catch { /* ignore */ }
+  try { host = new URL(url).hostname.replace(/^\[|\]$/g, ''); } catch { /* ignore */ }   // IPv6 comes bracketed
+  // Addresses are matched whole: "10.example.com" is somebody's public site,
+  // not a machine on the local network.
+  const ip = /^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/.exec(host);
+  const a = ip ? Number(ip[1]) : -1;
+  const b = ip ? Number(ip[2]) : -1;
   const isLocal =
-    host === 'localhost' || host === '127.0.0.1' || host === '::1' ||
+    host === 'localhost' || host === '::1' ||
     host.endsWith('.localhost') || host.endsWith('.local') ||
-    /^192\.168\./.test(host) || /^10\./.test(host);
+    a === 127 || a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31);
 
   if (isLocal) {
     event.preventDefault();

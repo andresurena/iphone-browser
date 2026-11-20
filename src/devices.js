@@ -114,6 +114,18 @@ const IPHONE_DUO = {
       splitRatio: 0.25,
       orientation: 'portrait',
     },
+    {
+      // The same arrangement with the focus in the video. Not in the menu:
+      // it's where clicking into the top half takes you, so that nothing on
+      // screen moves — only which half the address bar is editing.
+      id: 'split-video-top',
+      mirrorOf: 'split-video',
+      name: 'Split View, video on top',
+      of: 'inner',
+      split: 'leading',
+      splitRatio: 0.25,
+      orientation: 'portrait',
+    },
 
     // Poses — Beta. The device drawn in three dimensions the way Apple's
     // "device poses" diagram shows it held or set down. Each pose fixes the
@@ -454,6 +466,12 @@ const DEFAULTS = {
   startDeviceId: 'iphone-16-pro-max',
   advanced: false,         // shows the Profile (user agent) menu and Web Inspector button
   compare: false,          // two tabs side by side — see compare.js
+  liveStatus: true,        // battery follows the Mac's, signal dips now and then — see status.js
+
+  // Which of the Mac's cameras and microphones a page is given, by name;
+  // '' is whichever the system has as its default. See "camera & mic" in main.js.
+  cameraLabel: '',
+  micLabel: '',
 };
 
 const byId = (list, id, fallback) => list.find((d) => d.id === id) || fallback || list[0];

@@ -1,6 +1,6 @@
 'use strict'
 
-const { app, Menu, shell } = require('electron');
+const { app, Menu, shell, webContents } = require('electron');
 const { DEVICES } = require('./devices');
 
 /**
@@ -38,7 +38,18 @@ module.exports = function buildMenu(getWin) {
         // not used here; "Close Window" below gets its own shortcut instead. With
         // only one tab open, the renderer treats this as closing the window too,
         // matching how Safari and Chrome behave once there's nothing left to close.
-        { label: 'Close Tab', accelerator: 'Cmd+W', click: to('menu:close-tab') },
+        {
+          label: 'Close Tab',
+          accelerator: 'Cmd+W',
+          click: () => {
+            // With the Web Inspector's own window in front, ⌘W means that
+            // window — not a tab in the one behind it.
+            const inspected = webContents.getAllWebContents()
+              .find((wc) => !wc.isDestroyed() && wc.isDevToolsOpened() && wc.isDevToolsFocused());
+            if (inspected) inspected.closeDevTools();
+            else to('menu:close-tab')();
+          },
+        },
         { type: 'separator' },
         { label: 'Open Location…', accelerator: 'Cmd+L', click: to('menu:focus-url') },
         { type: 'separator' },
@@ -101,7 +112,9 @@ module.exports = function buildMenu(getWin) {
           label: 'Device',
           submenu: DEVICES.map((d, i) => ({
             label: d.name,
-            accelerator: i < 9 ? `Cmd+Shift+${i + 1}` : undefined,
+            // ⌥⌘, not ⇧⌘: macOS keeps ⇧⌘3, 4 and 5 for its own screenshots,
+            // so three of these never reached the app.
+            accelerator: i < 9 ? `Cmd+Alt+${i + 1}` : undefined,
             click: to('menu:device', d.id),
           })),
         },

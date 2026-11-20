@@ -444,19 +444,12 @@ select {
 }
 /* Sized to match the clock's cap-height (17px semibold ≈ 12.2px), same as
    real iOS — the icon cluster should read as one weight with the time, not
-   smaller or fainter. Each keeps its own aspect ratio, just scaled up. */
-.si.sig  { width: 20px;   height: 13px; }
-.si.wifi { width: 17.5px; height: 13px; }
-.si.batt { width: 28px;   height: 13.5px; }
-
-.si.wifi .arc {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.35;
-  stroke-linecap: round;
-}
-.si.batt .shell { fill: none; stroke: currentColor; stroke-width: 1.2; }
-.si.batt .cap { opacity: .9; }
+   smaller or fainter. Widths follow from each glyph's own proportions. */
+.si.sig  { width: 18.8px; height: 12.5px; }
+.si.wifi { width: 17.2px; height: 12.4px; }
+.si.batt { width: 27.6px; height: 13px; }
+.si.batt .shell { opacity: .4; }   /* the outline is fainter than the charge, as on the phone */
+.si.batt .cap { opacity: .4; }
 
 /* Android: clock hard left, icons hard right */
 .statusbar.android .time {
@@ -1861,3 +1854,72 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
   font-variant-numeric: tabular-nums;
 }
 #phone.homeview .btn { display: none; }
+
+/* ============================================================== media
+   A page asking for the camera or microphone (media.js): the alert sits over
+   that page only, dimming it, the way a phone's does. */
+.prompt-layer { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
+.media-ask {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+  background: rgba(0, 0, 0, .32);
+  animation: media-ask-in .18s ease-out;
+}
+@keyframes media-ask-in { from { opacity: 0; } }
+.media-alert {
+  width: min(270px, calc(100% - 48px));
+  border-radius: 14px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--ui-neutral) 94%, transparent);
+  color: var(--ui-fg);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .35);
+  text-align: center;
+  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+}
+.media-title {
+  margin: 0;
+  padding: 20px 16px 18px;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.29;
+  letter-spacing: -.02em;
+  overflow-wrap: anywhere;
+}
+.media-buttons { display: flex; border-top: .5px solid color-mix(in srgb, var(--ui-fg) 22%, transparent); }
+.media-buttons button {
+  flex: 1;
+  height: 44px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
+  font: 400 17px -apple-system, system-ui, sans-serif;
+}
+.media-buttons button + button {
+  border-left: .5px solid color-mix(in srgb, var(--ui-fg) 22%, transparent);
+  font-weight: 600;
+}
+.media-buttons button:active { background: color-mix(in srgb, var(--ui-fg) 10%, transparent); }
+.media-buttons button:focus-visible { outline: none; background: color-mix(in srgb, var(--ui-fg) 6%, transparent); }
+
+/* Settings › Camera: device names run long ("Andrés's iPhone Camera") */
+.menu-btn.wide { max-width: 260px; }
+.settings-clear-btn.plain { color: var(--fg); }
+.settings-clear-btn:disabled { opacity: .4; }
+
+/* ------------------------------------------------- live status icons
+   See status.js. Green and red are iOS's own system colours for a battery on
+   charge and one nearly flat. How the Duo's ring shows a part-charge is a
+   guess — nobody has photographed one below full yet. */
+.si .bolt { display: none; fill: currentColor; stroke: #30d158; stroke-width: .9; paint-order: stroke; stroke-linejoin: round; }
+.si.batt .bolt { stroke-width: 9; }   /* its outline is in the symbol's own, much larger, units */
+.si.charging .bolt { display: block; }
+.si.batt.charging .fill, .si.batt-md.charging .fill { fill: #30d158; }
+.si.batt.low .fill, .si.batt-md.low .fill { fill: #ff453a; }
+.si.sig .bar, #phone .duo-glyph .dot { transition: opacity .35s; }
+.si.sig-md .track { opacity: .3; }
+#phone .duo-glyph .ring.track { opacity: .28; }
+#phone .duo-glyph.charging .ring.level { stroke: #30d158; }
+#phone .duo-glyph.low .ring.level { stroke: #ff453a; }

@@ -88,7 +88,7 @@ it's an ordinary pointer again, so the app's own controls behave normally.
 | ⌘⇧B | show or hide the browser interface |
 | ⌘/ | show or hide the technical readout (viewport, DPR, zoom) |
 | ⌘0 … ⌘4 | zoom: fit, 100%, 85%, 75%, 50% |
-| ⌘⇧1 … ⌘⇧8 | switch device |
+| ⌥⌘1 … ⌥⌘9 | switch device (the first nine in the list) |
 | ⌘S / ⌘⇧S | screenshot / full-page screenshot to the Desktop |
 | ⌘, | Settings |
 | ⌘⌥I | Web Inspector for the page |
@@ -126,9 +126,11 @@ the app tells you so, right there.
 The gear at the bottom right, or ⌘,.
 
 - **General** — Start at Login; Start with last simulator used (or always open on
-  a device you pick); Advanced Mode.
+  a device you pick); Live status icons; Advanced Mode.
 - **Devices** and **Browsers** — choose which appear in the menus. The last one
   left on can't be switched off.
+- **Camera** — which of the Mac's cameras and microphones a page is given. An
+  iPhone nearby shows up in the list as a Continuity Camera.
 - **About**
 
 **Advanced Mode** adds the Profile menu, for sending a different user agent from
@@ -280,8 +282,12 @@ later release, edit those numbers rather than the layout code.
 - Landscape chrome is simplified to a single top bar for Vivaldi.
 - Browsers on iOS are all WebKit underneath and don't advertise themselves, so
   the iOS skins send Safari-family user agents.
-- Status bar readings — signal, Wi-Fi, battery — are drawn full. They're
-  furniture, not live system state. The clock is real.
+- The status bar is furniture with two small liberties: the battery follows
+  this Mac's (green while it's plugged in), and the signal dips now and then.
+  Wi-Fi is always full. The clock is real. Both can be switched off in Settings.
+- A page that asks for the camera or microphone gets the alert a phone would
+  show; allowing it lasts until you quit. The camera is the Mac's (or a nearby
+  iPhone's), so "front" and "back" are the same one.
 - Opening the Web Inspector briefly suspends touch emulation, because DevTools
   and the emulation share one debugging channel. It's restored when you close it.
 
@@ -298,7 +304,8 @@ later release, edit those numbers rather than the layout code.
 - `src/devices.js` — the device and user-agent catalogue.
 - `src/browsers.js` — the browser interface skins.
 - `scripts/make-icon.js` — renders the app icon with Electron itself and packs
-  it into `build/icon.icns`, so there's no image toolchain to install.
+  it into `build/icon.icns`, so there's no image toolchain to install. Run it
+  with `npm run icon` after changing the design; builds use the committed file.
 
 Built with [Claude Code](https://claude.com/claude-code).
 

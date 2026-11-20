@@ -25,6 +25,8 @@ function bindMenu(button, describe) {
   button.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       e.preventDefault();
+      // or the document's own handler below moves on from the item just focused
+      e.stopPropagation();
       showMenu(button, describe());
     }
   });
@@ -111,7 +113,9 @@ function moveMenuFocus(step) {
 
 document.addEventListener('keydown', (e) => {
   if (!openPopover) return;
-  if (e.key === 'Escape') { e.preventDefault(); const a = openPopover.anchor; closeMenu(); a.focus(); }
+  // stopImmediatePropagation: one Esc closes one thing — without it Settings,
+  // listening on this same document, sees the menu already gone and closes too
+  if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); const a = openPopover.anchor; closeMenu(); a.focus(); }
   else if (e.key === 'ArrowDown') { e.preventDefault(); moveMenuFocus(1); }
   else if (e.key === 'ArrowUp') { e.preventDefault(); moveMenuFocus(-1); }
   else if (e.key === 'Tab') closeMenu();

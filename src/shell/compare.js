@@ -65,6 +65,9 @@ function syncComparePair() {
     else left = activeTabId;
   }
   if (left == null) left = tabs.find((t) => t.id !== right)?.id ?? null;
+  // down to one tab, and it was on the second device: it moves to the first,
+  // which is the real phone — the second then offers to open another
+  if (left == null && right != null) { left = right; right = null; }
   if (right == null) right = tabs.find((t) => t.id !== left)?.id ?? null;
 
   compareLeftId = left;
@@ -73,9 +76,9 @@ function syncComparePair() {
 }
 
 /** The tab on the left-hand device — the original phone. */
-const comparePageId = () => (S.compare ? compareLeftId : null);
+const comparePageId = () => (compareActive() ? compareLeftId : null);
 /** The tab on the right-hand device, or null if there isn't a second tab yet. */
-const compareOtherId = () => (S.compare ? compareRightId : null);
+const compareOtherId = () => (compareActive() ? compareRightId : null);
 
 function toggleCompare() {
   if (device.foldable) {
@@ -89,6 +92,19 @@ function toggleCompare() {
 function setCompareTab(id) {
   if (id === compareLeftId) return;
   compareRightId = id;
+  compareKey = '';
+  layout();
+  renderTabs();
+}
+
+/** "+" on the second device's own browser bar: the new tab opens there, and the first device keeps its page. */
+function newTabOnSecondDevice() {
+  const keep = compareLeftId;
+  const before = tabs.length;
+  requestNewTab();
+  if (tabs.length === before) return;   // at the tab limit
+  compareLeftId = keep;
+  compareRightId = activeTabId;
   compareKey = '';
   layout();
   renderTabs();
@@ -210,7 +226,7 @@ function paintCompareFrame() {
   applyBarTheme(wrap, tab?.theme);
 
   const near = $('liveHalf').querySelector('.frame');
-  const far = $('duoBelow').querySelector('.compare-body .frame');
+  const far = $('compareBody').querySelector('.compare-body .frame');
   near?.classList.toggle('is-active', compareLeftId === activeTabId);
   far?.classList.toggle('is-active', compareRightId === activeTabId);
 }
@@ -261,6 +277,8 @@ function renderCompare(g) {
   setScreenClip(g);
   if (!g.compare) {
     if (bodyHost.firstChild) bodyHost.replaceChildren();
+    // the focus ring is Compare's; one phone on its own has nothing to mark
+    $('liveHalf').querySelector('.frame')?.classList.remove('is-active');
     // renderDuo shares these layers and has already had its turn this
     // layout — only clear what's there if it wasn't the one that drew it
     if (compareKey) {
@@ -290,6 +308,7 @@ function renderCompare(g) {
     below.replaceChildren();
     above.replaceChildren(compareOverlay(g, right));
     renderTabs();   // the tab strip marks which tab is on the second device
+    syncNav();      // the copied Back/Forward arrived with the first device's state
   }
   paintCompareFrame();
 }
@@ -303,6 +322,8 @@ function renderCompare(g) {
  */
 function handleCompareActivateClick(e) {
   if (!compareActive()) return;
+  // a "+" has just opened a tab and put it where it belongs
+  if (e.target.closest('[data-new-tab], [data-new-tab-here]')) return;
   const id = e.target.closest('.compare-overlay, .compare-body') ? compareRightId : compareLeftId;
   if (id != null && id !== activeTabId) activateTab(id);
 }

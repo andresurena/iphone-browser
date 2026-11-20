@@ -42,6 +42,18 @@ contextBridge.exposeInMainWorld('bridge', {
   clearBrowsingData: () => ipcRenderer.invoke('browsing:clear'),
   closeWindow: () => ipcRenderer.invoke('window:close'),
 
+  // camera & microphone — see main.js
+  getMedia: () => ipcRenderer.invoke('media:get'),
+  setMediaDevices: (choice) => ipcRenderer.invoke('media:devices', choice),
+  resetMedia: () => ipcRenderer.invoke('media:reset'),
+  openPrivacySettings: (kind) => ipcRenderer.invoke('media:privacy', kind),
+  answerMedia: (id, allow) => ipcRenderer.invoke('media:answer', id, allow),
+  onMedia: (handler) => {
+    for (const channel of ['media:ask', 'media:cancel', 'media:blocked']) {
+      ipcRenderer.on(channel, (_e, payload) => handler(channel.replace('media:', ''), payload));
+    }
+  },
+
   onMenu: (handler) => {
     for (const channel of MENU_CHANNELS) {
       ipcRenderer.on(channel, (_e, payload) =>

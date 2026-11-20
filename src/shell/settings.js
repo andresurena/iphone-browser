@@ -39,10 +39,12 @@ function showSettingsTab(name) {
 function renderSettings() {
   $('setRestore').checked = S.restoreLast;
   $('setAdvanced').checked = S.advanced;
+  $('setLiveStatus').checked = S.liveStatus !== false;
   $('startDeviceRow').hidden = S.restoreLast;
   $('startDeviceMenu').querySelector('.label').textContent = deviceById(S.startDeviceId).name;
   renderDeviceToggles();
   renderBrowserToggles();
+  refreshMediaSettings();
 }
 
 /**
@@ -86,7 +88,7 @@ function renderDeviceToggles() {
       const on = isDeviceOn(d.id);
       box.appendChild(toggleRow({
         title: d.name,
-        hint: d.displays ? d.displays.map((x) => x.name).join(' · ') : `${d.width} × ${d.height}`,
+        hint: d.displays ? d.displays.filter((x) => !x.mirrorOf).map((x) => x.name).join(' · ') : `${d.width} × ${d.height}`,
         checked: on,
         locked: on && onCount === 1,
         onChange: (next) => toggleDevice(d.id, next),
@@ -177,6 +179,7 @@ function wireSettings() {
     renderSettings();
   };
   $('setAdvanced').onchange = (e) => setAdvanced(e.target.checked);
+  $('setLiveStatus').onchange = (e) => { set({ liveStatus: e.target.checked }, { relayout: false }); paintStatusIcons(); };
 
   bindMenu($('startDeviceMenu'), () => ({
     sections: deviceMenuSections(),

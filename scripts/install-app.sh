@@ -20,6 +20,12 @@ for _ in $(seq 1 50); do
   pgrep -xq "$NAME" || break
   sleep 0.1
 done
+# Still open — a save panel or the Clear Browsing Data sheet holds a quit up.
+# Stop here rather than pull the bundle out from under it.
+if pgrep -xq "$NAME"; then
+  echo "$NAME is still running. Quit it, then run npm run install-app again." >&2
+  exit 1
+fi
 
 # Move rather than copy. A second "iPhone Browser.app" left behind in dist/ is
 # one Spotlight and Launchpad happily index, so searching for the app can open

@@ -314,8 +314,13 @@ function followSplitFocus(nextId) {
   // activeTabId is still null on launch, when there's no side to swap from
   if (!device?.split || activeTabId == null) return;
   if (nextId === activeTabId || nextId !== otherTabId()) return;
+  // the same arrangement with the "page" side moved over: same physical
+  // display, same proportions, the other half in focus
+  const here = displayOf(deviceEntry);
+  const flipped = deviceEntry.displays.find((d) => d.id !== here.id && d.split && d.split !== here.split
+    && d.of === here.of && (d.splitRatio || 0.5) === (here.splitRatio || 0.5))?.id;
+  if (!flipped) return;
   splitOtherId = activeTabId;
-  const flipped = device.split === 'leading' ? 'split-trailing' : 'split-leading';
   const displays = { ...S.displays, [deviceEntry.id]: flipped };
   S = { ...S, displays };
   window.bridge.setState({ displays });
@@ -368,9 +373,10 @@ const railIcon = (name) => `<svg viewBox="0 0 24 24">${RAIL_ICONS[name]}</svg>`;
 // middle of a battery ring, the ring broken at the bottom by the signal dots.
 const STATUS_GLYPH = `
   <svg class="duo-glyph" viewBox="0 0 32 32" aria-label="Wi-Fi, signal and battery">
-    <path class="ring" d="M6.81 25.19A13 13 0 1 1 25.19 25.19"/>
-    <circle cx="9.5" cy="27.26" r="1.35"/><circle cx="13.74" cy="28.8" r="1.35"/>
-    <circle cx="18.26" cy="28.8" r="1.35"/><circle cx="22.5" cy="27.26" r="1.35"/>
+    <path class="ring track" d="M6.81 25.19A13 13 0 1 1 25.19 25.19"/>
+    <path class="ring level" pathLength="100" d="M6.81 25.19A13 13 0 1 1 25.19 25.19"/>
+    <circle class="dot" cx="9.5" cy="27.26" r="1.35"/><circle class="dot" cx="13.74" cy="28.8" r="1.35"/>
+    <circle class="dot" cx="18.26" cy="28.8" r="1.35"/><circle class="dot" cx="22.5" cy="27.26" r="1.35"/>
     <path class="arc" d="M10.34 13.6A8 8 0 0 1 21.66 13.6"/>
     <path class="arc" d="M12.82 16.1A4.5 4.5 0 0 1 19.18 16.1"/>
     <circle cx="16" cy="19.2" r="1.4"/>
@@ -512,7 +518,8 @@ function renderDuo(g) {
 
   const otherId = g.split ? otherTabId() : null;
   const key = JSON.stringify([g.w, g.h, g.panes, g.divider, g.camera, g.crease,
-    S.showChrome, browser.id, activeTabId, otherId, tabs.length]);
+    S.showChrome, browser.id, activeTabId, otherId, tabs.length,
+    device.displayId, Boolean(device.placeholderOther)]);
   if (key === duoKey) return;
   duoKey = key;
 

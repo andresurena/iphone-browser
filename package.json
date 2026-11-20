@@ -1,9 +1,9 @@
 {
   "name": "iphone-browser",
   "version": "0.1.0",
-  "description": "A native Mac app that behaves like the browser on your phone \u2014 a real Chromium browser inside an iPhone or Pixel frame.",
+  "description": "A native Mac app that behaves like the browser on your phone — a real Chromium browser inside an iPhone or Pixel frame.",
   "main": "src/main.js",
-  "author": "Andr\u00e9s Ure\u00f1a",
+  "author": "Andrés Ureña",
   "license": "MIT",
   "private": true,
   "engines": {
@@ -13,10 +13,10 @@
     "start": "electron .",
     "icon": "electron scripts/make-icon.js",
     "build": "electron-builder --mac --universal",
-    "dist": "npm run icon && npm run build",
+    "dist": "npm run build",
     "install-app": "npm run dist && sh scripts/install-app.sh",
     "spike": "electron-builder --mac mas-dev -c.appId=com.andresurena.responsivephonebrowser -c.productName=\"Responsive Phone Browser\"",
-    "mas": "npm run icon && electron-builder --mac mas -c.appId=com.andresurena.responsivephonebrowser -c.productName=\"Responsive Phone Browser\""
+    "mas": "electron-builder --mac mas -c.appId=com.andresurena.responsivephonebrowser -c.productName=\"Responsive Phone Browser\""
   },
   "build": {
     "appId": "com.andresurena.iphonebrowser",
@@ -40,7 +40,12 @@
         }
       ],
       "icon": "build/icon.icns",
-      "identity": null
+      "identity": null,
+      "extendInfo": {
+        "NSCameraUsageDescription": "Websites you open can use the camera once you allow them to.",
+        "NSMicrophoneUsageDescription": "Websites you open can use the microphone once you allow them to.",
+        "NSCameraUseContinuityCameraDeviceType": true
+      }
     },
     "mas": {
       "category": "public.app-category.developer-tools",
@@ -59,7 +64,7 @@
     }
   },
   "devDependencies": {
-    "electron": "^44.7.2",
+    "electron": "^44.11.5",
     "electron-builder": "^26.15.3"
   },
   "keywords": [
