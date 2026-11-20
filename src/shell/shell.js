@@ -142,6 +142,7 @@ function safeCall(primary, fallback, dflt) {
   wireSettings();
   wireMedia();
   wireStatusIcons();
+  wirePageSelects();
   wireBreakout();
   tickClock();
   setInterval(tickClock, 10_000);
@@ -532,6 +533,7 @@ function layout() {
   renderPose(g);
   paintBarCollapse();
   placeMediaAsks();
+  placePageSelects();
   paintStatusIcons();
 
   // fit-to-window or a fixed percentage. A posed device is fitted to the box
@@ -589,7 +591,7 @@ function layout() {
 function reportPageRects() {
   const covered = !$('settings').hidden || !$('breakout').hidden || Boolean(openPopover);
   const rects = covered ? [] : tabs
-    .filter((t) => t.el.classList.contains('shown') && !mediaAskOver(t))
+    .filter((t) => t.el.classList.contains('shown') && !mediaAskOver(t) && !pageSelectOver(t))
     .map((t) => {
       let wcId;
       try { wcId = t.el.getWebContentsId(); } catch { return null; }   // guest not created yet
@@ -1150,9 +1152,17 @@ function attachWebviewListeners(el, tabId) {
         const n = Date.now(); if (n - t > 90) { t = n; say(); }
       }, { passive: true });
     })()`).catch(() => {});
+    hookPageSelects(el);
   });
   let poseSnapAt = 0;
   el.addEventListener('console-message', (e) => {
+    // the page's own <select>, to be drawn as the phone would (see select.js)
+    if (e.message.startsWith('__ib_select:')) {
+      let info = null;
+      try { info = JSON.parse(e.message.slice('__ib_select:'.length)); } catch { /* not ours */ }
+      if (info) showPageSelect(tabById(tabId), info);
+      return;
+    }
     const m = /^__ib_scroll:(\d+)$/.exec(e.message);
     if (!m) return;
     noteScroll(tabId, Number(m[1]));
@@ -1172,6 +1182,7 @@ function attachWebviewListeners(el, tabId) {
     if (!inPage) {
       if (tab.barCollapsed) setBarCollapsed(tab, false);
       tab.scrollY = 0;
+      closePageSelect(tabId);   // the control it belonged to is gone
     }
     let url = '';
     try { url = el.getURL(); } catch { /* guest not ready */ }
@@ -1400,6 +1411,9 @@ function paintChrome() {
       : matchMedia('(prefers-color-scheme: dark)').matches;
 
   phone.style.setProperty('--ui-neutral', dark ? '#2a2a2d' : '#ececee');
+  // menus the phone draws over a page (select.js): solid, since nothing here
+  // can blur a page behind them the way the device's glass does
+  phone.style.setProperty('--menu-bg', dark ? '#2c2c2e' : '#f8f8fa');
   phone.style.setProperty('--ui-fg', dark ? '#f2f2f5' : '#1c1c1e');
   phone.style.setProperty('--ui-field',
     dark ? 'rgba(120,120,128,.34)' : 'rgba(118,118,128,.20)');

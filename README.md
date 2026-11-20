@@ -285,6 +285,9 @@ later release, edit those numbers rather than the layout code.
 - The status bar is furniture with two small liberties: the battery follows
   this Mac's (green while it's plugged in), and the signal dips now and then.
   Wi-Fi is always full. The clock is real. Both can be switched off in Settings.
+- A page's dropdown (`<select>`) opens as the phone's own picker — a menu on
+  iOS, a dialog on Android. Date, time and colour fields still get Chromium's
+  desktop popups, which come out small under emulation.
 - A page that asks for the camera or microphone gets the alert a phone would
   show; allowing it lasts until you quit. The camera is the Mac's (or a nearby
   iPhone's), so "front" and "back" are the same one.

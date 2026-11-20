@@ -1935,3 +1935,87 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
 #phone .duo-glyph .ring.track { opacity: .28; }
 #phone .duo-glyph.charging .ring.level { stroke: #30d158; }
 #phone .duo-glyph.low .ring.level { stroke: #ff453a; }
+
+/* ------------------------------------------------------- page selects
+   See select.js: a page's <select>, drawn the way the phone draws it. Sizes
+   are the platforms' usual ones (44 pt rows and 17 pt type on iOS, 48 dp and
+   16 sp on Android) rather than measurements of this exact menu. */
+.page-select { position: absolute; overflow: hidden; pointer-events: auto; animation: media-ask-in .14s ease-out; }
+.page-select-menu {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 14px;
+  background: var(--menu-bg, #f8f8fa);
+  color: var(--ui-fg);
+  box-shadow:
+    0 0 0 .5px color-mix(in srgb, var(--ui-fg) 14%, transparent),
+    0 14px 48px rgba(0, 0, 0, .30);
+  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+}
+.page-select-item {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px 0 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: 400 17px/1.25 -apple-system, "SF Pro Text", system-ui, sans-serif;
+  letter-spacing: -.02em;
+  text-align: left;
+}
+.page-select-item + .page-select-item { border-top: .5px solid color-mix(in srgb, var(--ui-fg) 14%, transparent); }
+.page-select-item .label { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.page-select-item .tick {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  visibility: hidden;
+}
+.page-select-item[aria-selected="true"] .tick { visibility: visible; }
+.page-select-item:disabled { opacity: .35; }
+.page-select-item:not(:disabled):active,
+.page-select-item:focus-visible { outline: none; background: color-mix(in srgb, var(--ui-fg) 9%, transparent); }
+.page-select-group { flex: none; padding: 10px 18px 6px 38px; font-size: 13px; opacity: .55; }
+.page-select-rule { flex: none; height: 8px; background: color-mix(in srgb, var(--ui-fg) 8%, transparent); }
+
+/* Android: a dialog in the middle of the screen, the choice marked at the end of its row */
+.page-select.android { display: grid; place-items: center; background: rgba(0, 0, 0, .4); }
+.page-select.android .page-select-menu {
+  position: static;
+  width: min(320px, calc(100% - 56px));
+  padding: 12px 0;
+  border-radius: 28px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .35);
+}
+.page-select.android .page-select-item {
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 48px;
+  padding: 0 24px;
+  border-top: 0;
+  font: 400 16px/1.3 Roboto, "Google Sans", system-ui, sans-serif;
+  letter-spacing: 0;
+}
+.page-select.android .radio {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 2px solid color-mix(in srgb, var(--ui-fg) 60%, transparent);
+  border-radius: 50%;
+}
+.page-select.android [aria-selected="true"] .radio {
+  border-color: var(--accent);
+  background: radial-gradient(circle, var(--accent) 0 5px, transparent 5.5px);
+}
+.page-select.android .page-select-group { padding: 12px 24px 4px; }
